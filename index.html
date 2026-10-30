@@ -251,6 +251,8 @@
   #notaVista .vazio { cursor: default; }
   #notaVista .editor { flex: 1 1 0; min-height: 140px; }
   .tarefa .cat { margin-right: 4px; }
+  .tarefa .exec { font-size: .78rem; color: var(--muted); font-variant-numeric: tabular-nums; margin-right: 8px; text-decoration: none; display: inline-block; }
+  .tarefa .texto.colorida .exec { color: #5b5750; }
   #fTituloItem { width: 100%; padding: 8px 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--bg); font-size: 1.1rem; font-weight: 600; }
   #fTituloItem:focus { outline: none; border-color: var(--accent); }
   .item .texto .tit { display: block; }
@@ -430,6 +432,20 @@
       <button type="button" class="btn principal salvar">Salvar</button>
     </div>
   </form>
+</dialog>
+
+<!-- Pop-up ao marcar uma tarefa como feita: início e fim (opcional) -->
+<dialog id="popupExec">
+  <h3>Tarefa concluída ✔</h3>
+  <p id="execTexto" style="margin:-8px 0 14px;color:var(--muted)"></p>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+    <div><label for="execIni">Início</label><input type="time" id="execIni"></div>
+    <div><label for="execFim">Fim</label><input type="time" id="execFim"></div>
+  </div>
+  <div class="acoes">
+    <button type="button" class="btn" id="execPular" style="margin-left:auto">Pular</button>
+    <button type="button" class="btn principal" id="execSalvar">Salvar</button>
+  </div>
 </dialog>
 
 <!-- Pop-up para excluir uma tarefa recorrente -->
@@ -677,7 +693,9 @@ function desenhar() {
     check.onchange = () => {
       if (t.rec) (t.rec.feitas ??= {})[chave] = check.checked; // recorrente: só neste dia
       else t.feita = check.checked;
+      if (!check.checked) guardarExecucao(t, chave, null); // desmarcou: apaga o início/fim anotado
       salvar(); desenhar();
+      if (check.checked) perguntarExecucao(t, chave);
     };
 
     const hora = document.createElement("span");
@@ -688,6 +706,13 @@ function desenhar() {
     texto.className = "texto" + (t.cor ? " colorida" : "");
     texto.textContent = (ICONE_CATEGORIA[t.categoria] ? ICONE_CATEGORIA[t.categoria] + " " : "") + t.texto;
     if (t.cor) texto.style.background = t.cor;
+    const ex = execucaoDe(t, chave);
+    if (t.feita && ex) { // início e fim da execução, discreto antes da descrição
+      const sp = document.createElement("span");
+      sp.className = "exec"; sp.title = "Início e fim da execução";
+      sp.textContent = `${ex.ini || ""}–${ex.fim || ""}`;
+      texto.prepend(sp);
+    }
 
     const tipo = document.createElement("span");
     tipo.className = "tipo" + (t.tipo === "movel" ? " movel" : "");
@@ -712,6 +737,32 @@ function desenhar() {
   desenharNota();
   desenharCalendario();
 }
+
+// ================= Início e fim da execução (perguntado ao marcar o check; opcional) =================
+// Tarefa: exec = { ini, fim }. Recorrente: execs = { "2026-10-30": { ini, fim } }, um por dia.
+const execucaoDe = (t, chave) => t.rec ? t.rec.execs?.[chave] : t.exec;
+function guardarExecucao(t, chave, ex) {
+  if (t.rec) { t.rec.execs ??= {}; if (ex) t.rec.execs[chave] = ex; else delete t.rec.execs[chave]; }
+  else if (ex) t.exec = ex; else delete t.exec;
+}
+const popupExec = document.getElementById("popupExec");
+let execPendente = null;
+function perguntarExecucao(t, chave) {
+  execPendente = { t, chave };
+  document.getElementById("execTexto").textContent = t.texto;
+  document.getElementById("execIni").value = "";
+  document.getElementById("execFim").value = "";
+  popupExec.showModal();
+}
+document.getElementById("execPular").onclick = () => popupExec.close();
+document.getElementById("execSalvar").onclick = () => {
+  const ini = document.getElementById("execIni").value, fim = document.getElementById("execFim").value;
+  if (ini || fim) { guardarExecucao(execPendente.t, execPendente.chave, { ini, fim }); salvar(); desenhar(); }
+  popupExec.close();
+};
+document.querySelectorAll("#popupExec input").forEach(c => c.onkeydown = e => {
+  if (e.key === "Enter") { e.preventDefault(); document.getElementById("execSalvar").click(); }
+});
 
 // Botão 🗑: o primeiro clique pede confirmação; o segundo exclui
 function botaoExcluir(titulo, aoExcluir) {
@@ -1021,7 +1072,7 @@ document.getElementById("tema").onclick = () => {
   salvar(); desenhar();
 };
 document.addEventListener("keydown", e => {
-  if (popup.open || popupItem.open || popupExcluirRec.open || dados.config.modo === "lista") return;
+  if (popup.open || popupItem.open || popupExcluirRec.open || popupExec.open || dados.config.modo === "lista") return;
   if (e.altKey && e.key === "ArrowLeft") mudarDia(-1);
   if (e.altKey && e.key === "ArrowRight") mudarDia(1);
 });
@@ -1400,7 +1451,7 @@ async function iniciar() {
   const METAS = ["lista", "recorrentes"];
   const trocar = (nome, itens) => dados[nome].splice(0, dados[nome].length, ...itens); // mantém o mesmo array
   function redesenhar() {
-    if (popup.open || popupItem.open) return; // não mexe na tela com um pop-up aberto
+    if (popup.open || popupItem.open || popupExec.open) return; // não mexe na tela com um pop-up aberto
     desenhar();
     if (dados.config.modo === "lista") desenharLista();
   }
