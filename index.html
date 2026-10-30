@@ -185,8 +185,23 @@
   body:not(.modo-lista) #paginaLista { display: none; }
 
   /* ===== Página Lista (sem data) ===== */
-  #paginaLista { max-width: 1100px; margin: 16px auto; padding: 0 16px 24px; }
+  /* Lista: títulos à esquerda (menor) e a anotação aberta à direita (maior) */
+  #paginaLista { display: grid; grid-template-columns: minmax(300px, 1fr) 2.6fr; gap: 16px; align-items: start; margin: 16px 0; padding: 0 16px 24px; }
   #paginaLista .painel { display: block; border-radius: 10px; }
+  #paginaLista #listaDir { display: flex; flex-direction: column; }
+  #itemTitulo { margin: 0; font-size: 1.3rem; overflow-wrap: anywhere; flex: 1; }
+  #itemVista { flex: 1; display: flex; flex-direction: column; padding: 0 16px 4px; }
+  #itemVista .editor { flex: 1 1 0; min-height: 200px; font-size: 1.05rem; }
+  #voltarLista { display: none; }
+  @media (max-width: 999px) {
+    #paginaLista { grid-template-columns: 1fr; }
+    #paginaLista:not(.abrindo) #listaDir, #paginaLista.abrindo #listaEsq { display: none; }
+    #voltarLista { display: inline-flex; }
+    #itemTitulo { font-size: 1.05rem; }
+  }
+  .item.aberto { background: color-mix(in srgb, var(--accent) 14%, var(--paper)); }
+  .item .texto { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  #popupLista input[type=number] { width: 100%; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); }
   .itens { list-style: none; margin: 0; padding: 0 8px; counter-reset: item; }
   .item {
     display: grid; grid-template-columns: 24px 2.2rem 28px 1fr auto; align-items: center; gap: 6px;
@@ -197,7 +212,7 @@
   .item .alca { cursor: grab; color: var(--muted); text-align: center; user-select: none; touch-action: none; }
   .item .pos { color: var(--muted); font-weight: 600; font-variant-numeric: tabular-nums; text-align: right; }
   .item input[type=checkbox] { width: 20px; height: 20px; margin: 0 auto; accent-color: var(--done); cursor: pointer; }
-  .item .texto { cursor: pointer; overflow-wrap: anywhere; }
+  .item .texto { cursor: pointer; }
   .item .texto p, .item .texto div { margin: 0; }
   .item .setas button.excluir:hover { border-color: var(--late); color: var(--late); }
   .item .setas button.confirmar { background: var(--late); border-color: var(--late); color: #fff; }
@@ -230,7 +245,7 @@
     background: var(--bg); outline: none; line-height: 1.6; overflow-wrap: anywhere; cursor: text;
   }
   /* Mantém o recuo feito com TAB (no editor e onde o texto é mostrado) */
-  .editor, #notaVista, .item .texto { white-space: pre-wrap; tab-size: 4; }
+  .editor, #notaVista { white-space: pre-wrap; tab-size: 4; }
   .editor:focus { border-color: var(--accent); }
   /* Texto marcado com "cor padrão" aparece na cor do tema enquanto se edita */
   .editor [style*="rgb(1, 2, 3)"], .editor font[color="#010203"] { color: var(--ink) !important; }
@@ -257,7 +272,6 @@
   .tarefa .texto.colorida .exec { color: #5b5750; }
   #fTituloItem { width: 100%; padding: 8px 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--bg); font-size: 1.1rem; font-weight: 600; }
   #fTituloItem:focus { outline: none; border-color: var(--accent); }
-  .item .texto .tit { display: block; }
 
   /* ===== Calendário do mês ===== */
   .cal-topo { display: flex; align-items: center; gap: 6px; padding: 4px 16px 12px; }
@@ -389,14 +403,37 @@
 
 <!-- Página Lista: coisas sem data, em ordem de prioridade -->
 <div id="paginaLista">
-  <section class="painel">
+  <section class="painel" id="listaEsq">
     <div class="topo-tarefas">
       <h2>Lista: sem data definida</h2>
-      <button class="btn principal" id="novoItem">+ Adicionar anotação</button>
+      <button class="btn principal" id="novoItem">+ Anotação</button>
     </div>
     <ul class="itens" id="itens"></ul>
   </section>
+  <section class="painel" id="listaDir">
+    <div class="topo-tarefas">
+      <button class="btn" id="voltarLista">‹ Lista</button>
+      <h3 id="itemTitulo"></h3>
+      <button class="btn" id="editarItem">✏ Editar</button>
+    </div>
+    <div id="itemVista"></div>
+  </section>
 </div>
+
+<!-- Pop-up da Lista: só título e posição; o texto é escrito ao lado da lista -->
+<dialog id="popupLista">
+  <form onsubmit="return false">
+    <h3 id="popupListaTitulo">Nova anotação</h3>
+    <div class="campo"><label for="lTitulo">Título</label><input type="text" id="lTitulo" autocomplete="off"></div>
+    <div class="campo"><label for="lPos">Posição</label><input type="number" id="lPos" min="1"></div>
+    <p id="erroLista" style="color:var(--late);font-size:.85rem;min-height:1.2em;margin:0"></p>
+    <div class="acoes">
+      <button type="button" class="btn apagar" id="lApagar">Apagar</button>
+      <button type="button" class="btn" id="lCancelar" style="margin-left:auto">Cancelar</button>
+      <button type="button" class="btn principal" id="lSalvar">Salvar</button>
+    </div>
+  </form>
+</dialog>
 
 <!-- Modelo dos botões de negrito e cores, copiado para cada editor -->
 <template id="modeloFerramentas">
@@ -785,7 +822,7 @@ function botaoExcluir(titulo, aoExcluir) {
 // ================= Painel Anotação =================
 // Mostra a anotação do dia, ou as anotações de uma tarefa (Antes e Depois, se for reunião)
 let notaAberta = null; // id da anotação ou tarefa mostrada no painel
-const tituloNota = n => n.titulo || n.texto.split("\n")[0] || "Sem título";
+const tituloNota = n => n.titulo || (n.texto || "").split("\n")[0] || "Sem título";
 const notaAtual = () => dia().anotacoes.find(n => n.id === notaAberta)
   || tarefasDoDia(chaveData(dataAtual)).find(t => t.id === notaAberta);
 
@@ -1120,17 +1157,18 @@ function mover(de, para) {
 
 let arrastando = null; // índice do item sendo arrastado
 function desenharLista() {
+  desenharItem();
   const ul = document.getElementById("itens");
   ul.replaceChildren();
   if (!lista.length) {
     const li = document.createElement("li");
     li.className = "vazio";
-    li.textContent = "A lista está vazia. Use “+ Adicionar anotação”.";
+    li.textContent = "A lista está vazia. Use “+ Anotação”.";
     ul.append(li);
   }
   lista.forEach((item, i) => {
     const li = document.createElement("li");
-    li.className = "item" + (item.feito ? " feito" : "");
+    li.className = "item" + (item.feito ? " feito" : "") + (item.id === itemAberto ? " aberto" : "");
     li.dataset.i = i;
 
     const alca = document.createElement("span");
@@ -1144,9 +1182,8 @@ function desenharLista() {
     check.onchange = () => { item.feito = check.checked; salvar(); desenharLista(); };
 
     const texto = document.createElement("span");
-    texto.className = "texto"; texto.innerHTML = item.html; texto.title = "Clique para editar";
-    if (item.titulo) { const tit = document.createElement("b"); tit.className = "tit"; tit.textContent = item.titulo; texto.prepend(tit); }
-    texto.onclick = () => abrirItem(item);
+    texto.className = "texto"; texto.textContent = tituloNota(item); texto.title = "Clique para abrir";
+    texto.onclick = () => abrirItemLista(item);
 
     const setas = document.createElement("span");
     setas.className = "setas";
@@ -1209,6 +1246,73 @@ function alvoSob(y) {
   }
   return null;
 }
+
+// ----- Anotação aberta da Lista (à direita), editada ali mesmo e salva sozinha -----
+let itemAberto = null; // id do item aberto
+const paginaLista = document.getElementById("paginaLista");
+function abrirItemLista(item) {
+  itemAberto = item.id;
+  paginaLista.classList.add("abrindo"); // no celular, troca a lista pela anotação
+  desenharLista();
+  ajustarAltura();
+}
+function desenharItem() {
+  const vista = document.getElementById("itemVista");
+  if (vista.contains(document.activeElement) && vista.dataset.id === itemAberto) return; // não perde o cursor
+  const item = lista.find(x => x.id === itemAberto) || (window.innerWidth >= 1000 && lista[0]);
+  if (item) itemAberto = item.id;
+  vista.dataset.id = item ? item.id : "";
+  document.getElementById("editarItem").style.display = item ? "" : "none";
+  document.getElementById("itemTitulo").textContent = item ? `${lista.indexOf(item) + 1}º · ${tituloNota(item)}` : "";
+  vista.replaceChildren();
+  if (!item) {
+    vista.innerHTML = `<p class="vazio">Clique numa anotação da lista para abrir aqui.</p>`;
+    return;
+  }
+  const ed = criarEditor(item.html || "", "Escreva a anotação...");
+  ed.addEventListener("input", () => { item.html = limparHtml(ed.innerHTML); item.texto = ed.innerText.trim(); salvar(); });
+  vista.append(barraFerramentas(ed), ed);
+}
+document.getElementById("voltarLista").onclick = () => { paginaLista.classList.remove("abrindo"); desenharLista(); };
+
+// Pop-up pequeno da Lista: título e posição
+const popupLista = document.getElementById("popupLista");
+const lTitulo = document.getElementById("lTitulo"), lPos = document.getElementById("lPos");
+let itemListaEditando = null;
+function abrirPopupLista(item = null) {
+  itemListaEditando = item;
+  document.getElementById("popupListaTitulo").textContent = item ? "Editar anotação" : "Nova anotação";
+  lTitulo.value = item ? (item.titulo || tituloNota(item)) : "";
+  lPos.max = lista.length + (item ? 0 : 1);
+  lPos.value = item ? lista.indexOf(item) + 1 : lista.length + 1; // nova entra no fim
+  document.getElementById("lApagar").style.display = item ? "" : "none";
+  document.getElementById("erroLista").textContent = "";
+  popupLista.showModal();
+  lTitulo.focus();
+}
+function salvarPopupLista() {
+  const titulo = lTitulo.value.trim();
+  if (!titulo) { document.getElementById("erroLista").textContent = "Escreva o título."; lTitulo.focus(); return; }
+  const pos = Math.max(1, Number(lPos.value) || lista.length + 1) - 1;
+  let item = itemListaEditando;
+  if (item) { item.titulo = titulo; mover(lista.indexOf(item), pos); }
+  else {
+    item = { id: novoId(), titulo, texto: "", html: "", feito: false };
+    lista.splice(Math.min(pos, lista.length), 0, item);
+  }
+  popupLista.close(); salvar();
+  abrirItemLista(item);
+  if (!itemListaEditando) document.querySelector("#itemVista .editor")?.focus(); // nova: já pode escrever
+}
+document.getElementById("lSalvar").onclick = salvarPopupLista;
+[lTitulo, lPos].forEach(c => c.onkeydown = e => { if (e.key === "Enter") { e.preventDefault(); salvarPopupLista(); } });
+document.getElementById("lCancelar").onclick = () => popupLista.close();
+document.getElementById("lApagar").onclick = () => {
+  lista.splice(lista.indexOf(itemListaEditando), 1);
+  if (itemAberto === itemListaEditando.id) { itemAberto = null; paginaLista.classList.remove("abrindo"); }
+  popupLista.close(); salvar(); desenharLista();
+};
+document.getElementById("editarItem").onclick = () => { const it = lista.find(x => x.id === itemAberto); if (it) abrirPopupLista(it); };
 
 // Pop-up do item da Lista
 const popupItem = document.getElementById("popupItem");
@@ -1331,7 +1435,7 @@ document.getElementById("iApagar").onclick = () => {
   lista.splice(lista.indexOf(itemEditando), 1);
   popupItem.close(); salvar(); desenharLista();
 };
-document.getElementById("novoItem").onclick = () => abrirItem();
+document.getElementById("novoItem").onclick = () => abrirPopupLista();
 
 // ================= Avisos (notificações do navegador) =================
 const btnAvisos = document.getElementById("avisos");
@@ -1470,7 +1574,7 @@ async function iniciar() {
   const METAS = ["lista", "recorrentes"];
   const trocar = (nome, itens) => dados[nome].splice(0, dados[nome].length, ...itens); // mantém o mesmo array
   function redesenhar() {
-    if (popup.open || popupItem.open || popupExec.open) return; // não mexe na tela com um pop-up aberto
+    if (popup.open || popupItem.open || popupExec.open || popupLista.open) return; // não mexe na tela com um pop-up aberto
     desenhar();
     if (dados.config.modo === "lista") desenharLista();
   }
