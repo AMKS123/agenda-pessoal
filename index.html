@@ -1006,7 +1006,15 @@ mostrarModo(dados.config.modo);
 // Cada pessoa logada tem seus dados em usuarios/{uid}:
 //   dias/{AAAA-MM-DD} -> { tarefas, notas }     meta/lista -> { itens }
 // Tema e página aberta continuam só neste aparelho (cada tela pode ter o seu).
-const FIREBASE_CONFIG = null; // configuração do app web no Firebase
+// Configuração do app web no Firebase (estas chaves são públicas; quem protege os dados são as regras do Firestore)
+const FIREBASE_CONFIG = {
+  apiKey: "AIzaSyDxL4FjCxnJhNgnCO7G752boLR8IQxaHAU",
+  authDomain: "agenda-pessoal-8d1ad.firebaseapp.com",
+  projectId: "agenda-pessoal-8d1ad",
+  storageBucket: "agenda-pessoal-8d1ad.firebasestorage.app",
+  messagingSenderId: "746644797256",
+  appId: "1:746644797256:web:a85780f563284df3c4e57d",
+};
 const VERSAO = "10.12.2";
 
 const btn = document.getElementById("nuvem");
