@@ -432,6 +432,17 @@
   </form>
 </dialog>
 
+<!-- Pop-up para excluir uma tarefa recorrente -->
+<dialog id="popupExcluirRec">
+  <h3>Excluir tarefa recorrente</h3>
+  <p id="excluirRecTexto" style="margin:0 0 4px"></p>
+  <div class="acoes">
+    <button type="button" class="btn" id="exRecCancelar" style="margin-right:auto">Cancelar</button>
+    <button type="button" class="btn" id="exRecDia">Só este dia</button>
+    <button type="button" class="btn principal" id="exRecTodos" style="background:var(--late);border-color:var(--late)">Todos</button>
+  </div>
+</dialog>
+
 <!-- Pop-up para criar ou editar uma tarefa -->
 <dialog id="popup">
   <form id="form" onsubmit="return false">
@@ -497,7 +508,7 @@ const ALTURA_CHIP = 18;          // altura aproximada de cada tarefa dentro do d
 // Tarefa: { id, hora: "08:00" ou "", texto, tipo: "fixa" | "movel", feita }
 //   categoria: "tarefa" | "reuniao"; notaHtml (tarefa) ou antesHtml/depoisHtml (reunião)
 // Anotação do dia: { id, titulo, texto, html }
-// Recorrentes (ficam fora dos dias): { id, texto, hora, tipo, cor, inicio, fim, repete, notaHtml, feitas: { "2026-10-30": true } }
+// Recorrentes (ficam fora dos dias): { id, texto, hora, tipo, cor, inicio, fim, repete, notaHtml, feitas: { "2026-10-30": true }, excluidos: { "2026-11-02": true } }
 const CHAVE = "agenda-pessoal:v1";
 let dados;
 try { dados = JSON.parse(localStorage.getItem(CHAVE)) || {}; } catch { dados = {}; }
@@ -564,7 +575,7 @@ const ordenar = lista => [...lista].sort((a, b) =>
 
 // Recorrente acontece nesta data?
 function ocorre(r, chave) {
-  if (chave < r.inicio || (r.fim && chave > r.fim)) return false;
+  if (chave < r.inicio || (r.fim && chave > r.fim) || r.excluidos?.[chave]) return false;
   const [, m, d] = chave.split("-"), [, mi, di] = r.inicio.split("-");
   if (r.repete === "semanal") return dataDe(chave).getDay() === dataDe(r.inicio).getDay();
   if (r.repete === "mensal") return d === di;
@@ -683,8 +694,13 @@ function desenhar() {
     tipo.className = "tipo" + (t.tipo === "movel" ? " movel" : "");
     tipo.textContent = t.tipo === "movel" ? "móvel" : "fixo";
 
-    const excluir = botaoExcluir(t.rec ? "Excluir (todas as repetições)" : "Excluir tarefa", () => {
-      removerTarefa(t.rec || t);
+    let excluir;
+    if (t.rec) { // recorrente: pergunta se exclui só este dia ou todos
+      excluir = document.createElement("button");
+      excluir.className = "excluir"; excluir.textContent = "🗑"; excluir.title = "Excluir";
+      excluir.onclick = e => { e.stopPropagation(); perguntarExcluirRec(t.rec, chave); };
+    } else excluir = botaoExcluir("Excluir tarefa", () => {
+      removerTarefa(t);
       salvar(); desenhar();
     });
 
@@ -866,8 +882,27 @@ document.querySelector("#form .salvar").onclick = salvarTarefa;
 [fTexto, fHora].forEach(c => c.onkeydown = e => { if (e.key === "Enter") { e.preventDefault(); salvarTarefa(); } });
 document.getElementById("fCancelar").onclick = () => popup.close();
 document.getElementById("fApagar").onclick = () => {
+  popup.close();
+  if (ehRecorrente(editando)) { perguntarExcluirRec(editando, chaveData(dataAtual)); return; }
   removerTarefa(editando);
-  popup.close(); salvar(); desenhar();
+  salvar(); desenhar();
+};
+// Excluir recorrente: só o dia escolhido (fica marcado em "excluidos") ou todas as repetições
+const popupExcluirRec = document.getElementById("popupExcluirRec");
+let excluirRec = null;
+function perguntarExcluirRec(r, chave) {
+  excluirRec = { r, chave };
+  document.getElementById("excluirRecTexto").textContent = `“${r.texto}” — excluir só o dia ${dataCurta(chave)} ou todas as repetições?`;
+  popupExcluirRec.showModal();
+}
+document.getElementById("exRecCancelar").onclick = () => popupExcluirRec.close();
+document.getElementById("exRecDia").onclick = () => {
+  (excluirRec.r.excluidos ??= {})[excluirRec.chave] = true;
+  popupExcluirRec.close(); salvar(); desenhar();
+};
+document.getElementById("exRecTodos").onclick = () => {
+  removerTarefa(excluirRec.r);
+  popupExcluirRec.close(); salvar(); desenhar();
 };
 fNotaTarefa.before(barraFerramentas(fNotaTarefa));
 fNotaTarefa.onpaste = e => colarTexto(e);
@@ -996,7 +1031,7 @@ document.getElementById("tema").onclick = () => {
   salvar(); desenhar();
 };
 document.addEventListener("keydown", e => {
-  if (popup.open || popupItem.open || dados.config.modo === "lista") return;
+  if (popup.open || popupItem.open || popupExcluirRec.open || dados.config.modo === "lista") return;
   if (e.altKey && e.key === "ArrowLeft") mudarDia(-1);
   if (e.altKey && e.key === "ArrowRight") mudarDia(1);
 });
