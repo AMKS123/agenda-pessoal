@@ -151,7 +151,7 @@
   #popup { width: min(520px, calc(100vw - 32px)); max-height: calc(100vh - 32px); overflow: auto; }
   .linha-rec { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
   .linha-rec label { font-size: .8rem; }
-  #form:not([data-cat=recorrente]) .so-recorrente { display: none; }
+  #form:not([data-cat=recorrente]) .so-recorrente, #form[data-cat=recorrente] .nao-recorrente { display: none; }
   .opcoes-tipo label {
     border: 1px solid var(--line); border-radius: 10px; padding: 10px; cursor: pointer; color: var(--ink); margin: 0;
   }
@@ -475,9 +475,9 @@
       <label for="fTexto">Descrição</label>
       <input type="text" id="fTexto" placeholder="O que precisa ser feito?" autocomplete="off">
     </div>
-    <div class="campo">
-      <label for="fHora">Horário</label>
-      <input type="time" id="fHora">
+    <div class="campo" style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+      <div class="nao-recorrente"><label for="fData">Data</label><input type="date" id="fData"></div>
+      <div><label for="fHora">Horário</label><input type="time" id="fHora"></div>
     </div>
     <div class="campo so-recorrente linha-rec">
       <div><label for="fInicio">Início</label><input type="date" id="fInicio"></div>
@@ -871,6 +871,7 @@ function abrirPopup(tarefa = null) {
   mostrarCategoria(categoriaDe(tarefa));
   fTexto.value = tarefa?.texto || "";
   fHora.value = tarefa?.hora || "";
+  document.getElementById("fData").value = chaveData(dataAtual); // mudar a data leva a tarefa (e suas anotações) para outro dia
   document.getElementById("fInicio").value = tarefa?.inicio || chaveData(dataAtual);
   document.getElementById("fFim").value = tarefa?.fim || "";
   document.getElementById("fRepete").value = tarefa?.repete || "semanal";
@@ -903,6 +904,8 @@ function salvarTarefa() {
   if (cat === "recorrente") Object.assign(campos, { inicio, fim, repete });
   else campos.categoria = cat;
 
+  const novaData = document.getElementById("fData").value || chaveData(dataAtual);
+  let final = editando;
   if (editando && ehRecorrente(editando) === (cat === "recorrente")) Object.assign(editando, campos);
   else {
     // Nova, ou mudou entre recorrente e não recorrente: sai de um lugar e entra no outro
@@ -910,7 +913,15 @@ function salvarTarefa() {
     if (editando) removerTarefa(editando);
     if (cat === "recorrente") { delete t.categoria; delete t.feita; t.feitas ??= {}; dados.recorrentes.push(t); }
     else { delete t.inicio; delete t.fim; delete t.repete; delete t.feitas; dia().tarefas.push(t); }
-    notaAberta = t.id;
+    notaAberta = t.id; final = t;
+  }
+  // Reagendada para outro dia: sai deste dia e entra no novo, com tudo o que tinha
+  if (cat !== "recorrente" && novaData !== chaveData(dataAtual)) {
+    dia().tarefas = dia().tarefas.filter(x => x !== final);
+    (dados.dias[novaData] ??= { tarefas: [], anotacoes: [] }).tarefas.push(final);
+    notaAberta = final.id;
+    popup.close(); salvar(); irPara(dataDe(novaData));
+    return;
   }
   popup.close(); salvar(); desenhar();
 }
