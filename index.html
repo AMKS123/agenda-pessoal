@@ -4,6 +4,12 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Agenda Pessoal</title>
+<!-- Instalar como app (celular e computador) -->
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#2f6fd6">
+<link rel="icon" href="icone-192.png">
+<link rel="apple-touch-icon" href="icone-180.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
 <style>
   /* ===== Temas: branco, pastel e escuro ===== */
   :root, :root[data-theme="branco"] {
@@ -1024,6 +1030,8 @@ setInterval(() => {
 salvar(); // grava a conversão do formato antigo, se houve
 estadoAvisos();
 desenhar();
+// Registra o service worker (necessário para instalar como app); não funciona abrindo o arquivo direto do computador
+if ("serviceWorker" in navigator && location.protocol.startsWith("http")) navigator.serviceWorker.register("sw.js").catch(console.error);
 mostrarModo(dados.config.modo);
 </script>
 
