@@ -141,10 +141,17 @@
   dialog h3 { margin: 0 0 16px; }
   dialog label { display: block; font-size: .85rem; color: var(--muted); margin-bottom: 4px; }
   dialog .campo { margin-bottom: 14px; }
-  dialog input[type=time], dialog input[type=text] {
+  dialog input[type=time], dialog input[type=text], dialog input[type=date], dialog select {
     width: 100%; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg);
   }
   .opcoes-tipo { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .opcoes-tipo.tres { grid-template-columns: repeat(3, 1fr); }
+  .opcoes-tipo.tres label { text-align: center; padding: 8px 4px; }
+  .opcoes-tipo.tres input { display: none; }
+  #popup { width: min(520px, calc(100vw - 32px)); max-height: calc(100vh - 32px); overflow: auto; }
+  .linha-rec { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
+  .linha-rec label { font-size: .8rem; }
+  #form:not([data-cat=recorrente]) .so-recorrente, #form[data-cat=reuniao] .sem-reuniao { display: none; }
   .opcoes-tipo label {
     border: 1px solid var(--line); border-radius: 10px; padding: 10px; cursor: pointer; color: var(--ink); margin: 0;
   }
@@ -217,14 +224,19 @@
   .ferramentas .cor.padrao { background: var(--ink); }
   .ferramentas .posicao { margin-left: auto; display: flex; align-items: center; gap: 6px; font-size: .85rem; color: var(--muted); }
   .ferramentas .posicao input { width: 70px; padding: 4px 8px; border: 1px solid var(--line); border-radius: 6px; background: var(--paper); }
-  #fItem {
-    flex: 1; min-height: 0; overflow: auto; padding: 14px 16px; border: 1px solid var(--line); border-radius: 10px;
-    background: var(--bg); outline: none; font-size: 1.05rem; line-height: 1.6; overflow-wrap: anywhere;
+  /* Editores de texto com negrito e cores (pop-ups e painel Anotação) */
+  .editor {
+    overflow: auto; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px;
+    background: var(--bg); outline: none; line-height: 1.6; overflow-wrap: anywhere; cursor: text;
   }
-  #fItem:focus { border-color: var(--accent); }
+  .editor:focus { border-color: var(--accent); }
   /* Texto marcado com "cor padrão" aparece na cor do tema enquanto se edita */
-  #fItem [style*="rgb(1, 2, 3)"], #fItem font[color="#010203"] { color: var(--ink) !important; }
-  #fItem:empty::before { content: attr(data-placeholder); color: var(--muted); }
+  .editor [style*="rgb(1, 2, 3)"], .editor font[color="#010203"] { color: var(--ink) !important; }
+  .editor:empty::before { content: attr(data-placeholder); color: var(--muted); }
+  #fItem { flex: 1; min-height: 0; padding: 14px 16px; font-size: 1.05rem; }
+  .editor.pequeno { min-height: 90px; max-height: 220px; }
+  .ferramentas.compacta { padding: 3px; border-radius: 8px 8px 0 0; border-bottom: none; }
+  .ferramentas.compacta + .editor { border-radius: 0 0 10px 10px; }
   #formItem .acoes { margin-top: 0; }
 
   /* ===== Anotações do dia (linhas na lista de tarefas, abertas no painel Anotação) ===== */
@@ -235,6 +247,11 @@
   #notaVista { padding: 0 16px; font-size: 1.05rem; line-height: 1.6; overflow-wrap: anywhere; cursor: text; }
   #notaVista h3 { margin: 4px 0 12px; font-size: 1.3rem; }
   #notaVista .vazio { cursor: default; }
+  #notaVista .meta { color: var(--muted); font-size: .9rem; margin: -6px 0 12px; }
+  #notaVista h4 { margin: 14px 0 6px; font-size: .8rem; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+  #notaVista .editor { min-height: 40vh; }
+  #notaVista.reuniao .editor { min-height: 25vh; }
+  .tarefa .cat { margin-right: 4px; }
   #fTituloItem { width: 100%; padding: 8px 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--bg); font-size: 1.1rem; font-weight: 600; }
   #fTituloItem:focus { outline: none; border-color: var(--accent); }
   .item .texto .tit { display: block; }
@@ -377,6 +394,18 @@
   </section>
 </div>
 
+<!-- Modelo dos botões de negrito e cores, copiado para cada editor -->
+<template id="modeloFerramentas">
+  <button type="button" class="negrito" data-cmd="bold" title="Negrito (Ctrl+B)">B</button>
+  <span class="sep"></span>
+  <button type="button" class="cor padrao" data-cor="padrao" title="Cor padrão"></button>
+  <button type="button" class="cor" data-cor="#e53935" style="background:#e53935" title="Vermelho"></button>
+  <button type="button" class="cor" data-cor="#fb8c00" style="background:#fb8c00" title="Laranja"></button>
+  <button type="button" class="cor" data-cor="#43a047" style="background:#43a047" title="Verde"></button>
+  <button type="button" class="cor" data-cor="#1e88e5" style="background:#1e88e5" title="Azul"></button>
+  <button type="button" class="cor" data-cor="#8e24aa" style="background:#8e24aa" title="Roxo"></button>
+</template>
+
 <!-- Pop-up para um item da Lista -->
 <dialog id="popupItem">
   <form id="formItem" onsubmit="return false">
@@ -393,7 +422,7 @@
       <button type="button" class="cor" data-cor="#8e24aa" style="background:#8e24aa" title="Roxo"></button>
       <label class="posicao" for="fPos" id="campoPos">Posição <input type="number" id="fPos" min="1"></label>
     </div>
-    <div id="fItem" contenteditable="true" role="textbox" aria-multiline="true" data-placeholder="O que você precisa fazer?"></div>
+    <div id="fItem" class="editor" contenteditable="true" role="textbox" aria-multiline="true" data-placeholder="O que você precisa fazer?"></div>
     <p id="erroItem" style="color:var(--late);font-size:.85rem;min-height:1.2em;margin:0"></p>
     <div class="acoes">
       <button type="button" class="btn apagar" id="iApagar">Apagar</button>
@@ -408,12 +437,31 @@
   <form id="form" onsubmit="return false">
     <h3 id="popupTitulo">Nova tarefa</h3>
     <div class="campo">
-      <label for="fTexto">Tarefa</label>
+      <label>Tipo de tarefa</label>
+      <div class="opcoes-tipo tres">
+        <label><input type="radio" name="categoria" value="tarefa" checked>✔ Tarefa</label>
+        <label><input type="radio" name="categoria" value="recorrente">🔁 Recorrente</label>
+        <label><input type="radio" name="categoria" value="reuniao">👥 Reunião</label>
+      </div>
+    </div>
+    <div class="campo">
+      <label for="fTexto">Descrição</label>
       <input type="text" id="fTexto" placeholder="O que precisa ser feito?" autocomplete="off">
     </div>
     <div class="campo">
       <label for="fHora">Horário</label>
       <input type="time" id="fHora">
+    </div>
+    <div class="campo so-recorrente linha-rec">
+      <div><label for="fInicio">Início</label><input type="date" id="fInicio"></div>
+      <div><label for="fFim">Fim (opcional)</label><input type="date" id="fFim"></div>
+      <div><label for="fRepete">Repete</label>
+        <select id="fRepete">
+          <option value="diaria">Diária</option>
+          <option value="semanal">Semanal</option>
+          <option value="mensal">Mensal</option>
+          <option value="anual">Anual</option>
+        </select></div>
     </div>
     <div class="campo">
       <label>Tipo de horário</label>
@@ -425,6 +473,10 @@
     <div class="campo">
       <label>Cor (prioridade)</label>
       <div class="cores-postit" id="coresPostit"></div>
+    </div>
+    <div class="campo sem-reuniao">
+      <label>Anotações</label>
+      <div id="fNotaTarefa" class="editor pequeno" contenteditable="true" role="textbox" aria-multiline="true" data-placeholder="Opcional"></div>
     </div>
     <p id="erroForm"></p>
     <div class="acoes">
@@ -443,7 +495,9 @@ const ALTURA_CHIP = 18;          // altura aproximada de cada tarefa dentro do d
 // ================= Dados (salvos no navegador) =================
 // Formato: { config: { tema }, dias: { "2026-10-30": { tarefas: [...], anotacoes: [...] } } }
 // Tarefa: { id, hora: "08:00" ou "", texto, tipo: "fixa" | "movel", feita }
+//   categoria: "tarefa" | "reuniao"; notaHtml (tarefa) ou antesHtml/depoisHtml (reunião)
 // Anotação do dia: { id, titulo, texto, html }
+// Recorrentes (ficam fora dos dias): { id, texto, hora, tipo, cor, inicio, fim, repete, notaHtml, feitas: { "2026-10-30": true } }
 const CHAVE = "agenda-pessoal:v1";
 let dados;
 try { dados = JSON.parse(localStorage.getItem(CHAVE)) || {}; } catch { dados = {}; }
@@ -454,6 +508,7 @@ dados.lista ??= []; // Lista sem data: [{ id, titulo, texto, html, feito }], na 
 const escapar = t => t.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/\n/g, "<br>");
 for (const item of dados.lista) item.html ??= escapar(item.texto || "");
 dados.config.modo ??= "agenda";
+dados.recorrentes ??= [];
 
 // Converte o formato antigo (fixas + variáveis) para a lista única de tarefas
 for (const d of Object.values(dados.dias)) {
@@ -507,6 +562,26 @@ function atrasada(t, chave) {
 const ordenar = lista => [...lista].sort((a, b) =>
   (a.hora ? minutos(a.hora) : -1) - (b.hora ? minutos(b.hora) : -1));
 
+// Recorrente acontece nesta data?
+function ocorre(r, chave) {
+  if (chave < r.inicio || (r.fim && chave > r.fim)) return false;
+  const [, m, d] = chave.split("-"), [, mi, di] = r.inicio.split("-");
+  if (r.repete === "semanal") return dataDe(chave).getDay() === dataDe(r.inicio).getDay();
+  if (r.repete === "mensal") return d === di;
+  if (r.repete === "anual") return d === di && m === mi;
+  return true; // diária
+}
+const dataDe = chave => { const [a, m, d] = chave.split("-").map(Number); return new Date(a, m - 1, d); };
+// Tarefas do dia + recorrentes que caem nele. A recorrente vira uma cópia com "feita" daquele dia e rec = original.
+function tarefasDoDia(chave) {
+  const recs = dados.recorrentes.filter(r => ocorre(r, chave))
+    .map(r => ({ ...r, categoria: "recorrente", feita: !!r.feitas?.[chave], rec: r }));
+  return [...(dados.dias[chave]?.tarefas || []), ...recs];
+}
+const ICONE_CATEGORIA = { recorrente: "🔁", reuniao: "👥" };
+const NOME_REPETE = { diaria: "Todo dia", semanal: "Toda semana", mensal: "Todo mês", anual: "Todo ano" };
+const dataCurta = chave => chave.split("-").reverse().join("/");
+
 // Cores de post-it para associar prioridades ("" = sem cor)
 const CORES_POSTIT = [
   { valor: "", nome: "Sem cor" },
@@ -540,7 +615,7 @@ function desenhar() {
 
   const lista = document.getElementById("lista");
   lista.replaceChildren();
-  const tarefas = ordenar(d.tarefas);
+  const tarefas = ordenar(tarefasDoDia(chave));
 
   if (!tarefas.length && !d.anotacoes.length) {
     const li = document.createElement("li");
@@ -581,15 +656,19 @@ function desenhar() {
     if (!agoraPosto && t.hora && minutos(t.hora) > agora) { lista.append(linhaAgora()); agoraPosto = true; }
 
     const li = document.createElement("li");
-    li.className = "tarefa" + (t.feita ? " feita" : "") + (atrasada(t, chave) ? " atrasada" : "");
-    li.title = "Clique para editar";
+    li.className = "tarefa" + (t.feita ? " feita" : "") + (atrasada(t, chave) ? " atrasada" : "") + (t.id === notaAberta ? " aberta" : "");
+    li.title = "Clique para abrir as anotações";
 
     const check = document.createElement("input");
     check.type = "checkbox";
     check.checked = !!t.feita;
     check.title = "Marcar como feita";
     check.onclick = e => e.stopPropagation(); // marcar não abre o pop-up
-    check.onchange = () => { t.feita = check.checked; salvar(); desenhar(); };
+    check.onchange = () => {
+      if (t.rec) (t.rec.feitas ??= {})[chave] = check.checked; // recorrente: só neste dia
+      else t.feita = check.checked;
+      salvar(); desenhar();
+    };
 
     const hora = document.createElement("span");
     hora.className = "hora" + (t.hora ? "" : " vazia");
@@ -597,20 +676,20 @@ function desenhar() {
 
     const texto = document.createElement("span");
     texto.className = "texto" + (t.cor ? " colorida" : "");
-    texto.textContent = t.texto;
+    texto.textContent = (ICONE_CATEGORIA[t.categoria] ? ICONE_CATEGORIA[t.categoria] + " " : "") + t.texto;
     if (t.cor) texto.style.background = t.cor;
 
     const tipo = document.createElement("span");
     tipo.className = "tipo" + (t.tipo === "movel" ? " movel" : "");
     tipo.textContent = t.tipo === "movel" ? "móvel" : "fixo";
 
-    const excluir = botaoExcluir("Excluir tarefa", () => {
-      d.tarefas = d.tarefas.filter(x => x !== t);
+    const excluir = botaoExcluir(t.rec ? "Excluir (todas as repetições)" : "Excluir tarefa", () => {
+      removerTarefa(t.rec || t);
       salvar(); desenhar();
     });
 
     li.append(check, hora, texto, tipo, excluir);
-    li.onclick = () => abrirPopup(t);
+    li.onclick = () => abrirNota(t);
     lista.append(li);
   }
   if (!agoraPosto && tarefas.length) lista.append(linhaAgora());
@@ -635,10 +714,12 @@ function botaoExcluir(titulo, aoExcluir) {
   return excluir;
 }
 
-// ================= Anotações do dia =================
-let notaAberta = null; // id da anotação mostrada no painel Anotação
+// ================= Painel Anotação =================
+// Mostra a anotação do dia, ou as anotações de uma tarefa (Antes e Depois, se for reunião)
+let notaAberta = null; // id da anotação ou tarefa mostrada no painel
 const tituloNota = n => n.titulo || n.texto.split("\n")[0] || "Sem título";
-const notaAtual = () => dia().anotacoes.find(n => n.id === notaAberta);
+const notaAtual = () => dia().anotacoes.find(n => n.id === notaAberta)
+  || tarefasDoDia(chaveData(dataAtual)).find(t => t.id === notaAberta);
 
 function abrirNota(n) {
   notaAberta = n.id;
@@ -647,22 +728,67 @@ function abrirNota(n) {
 }
 function desenharNota() {
   const vista = document.getElementById("notaVista");
+  // Não redesenha enquanto se escreve no painel (perderia o cursor)
+  if (vista.contains(document.activeElement) && vista.dataset.id === notaAberta) return;
   const n = notaAtual();
+  vista.dataset.id = n ? n.id : "";
   document.getElementById("editarNota").style.display = n ? "" : "none";
+  vista.replaceChildren();
   if (!n) {
-    vista.innerHTML = `<p class="vazio">Clique numa anotação 📝 da lista de tarefas para abrir aqui.</p>`;
+    vista.innerHTML = `<p class="vazio">Clique numa tarefa ou anotação 📝 da lista do dia para abrir aqui.</p>`;
     return;
   }
-  vista.innerHTML = "";
   const h3 = document.createElement("h3");
-  h3.textContent = tituloNota(n);
-  const corpo = document.createElement("div");
-  corpo.innerHTML = n.html;
-  vista.append(h3, corpo);
+  vista.append(h3);
+  if (n.html !== undefined) { // anotação do dia: só leitura; clicar abre o pop-up
+    h3.textContent = "📝 " + tituloNota(n);
+    const corpo = document.createElement("div");
+    corpo.innerHTML = n.html;
+    corpo.onclick = editarNotaAberta;
+    vista.append(corpo);
+    return;
+  }
+  // Tarefa: as anotações são editadas direto aqui e salvas sozinhas
+  const original = n.rec || n;
+  h3.textContent = (ICONE_CATEGORIA[n.categoria] ? ICONE_CATEGORIA[n.categoria] + " " : "") + (n.hora ? n.hora + " · " : "") + n.texto;
+  const meta = document.createElement("p");
+  meta.className = "meta";
+  meta.textContent = n.categoria === "reuniao" ? "Reunião" : n.rec
+    ? `${NOME_REPETE[n.repete]}, de ${dataCurta(n.inicio)}${n.fim ? " até " + dataCurta(n.fim) : " em diante"}` : "Tarefa";
+  vista.append(meta);
+  const area = (rotulo, campo, dica) => {
+    if (rotulo) { const h4 = document.createElement("h4"); h4.textContent = rotulo; vista.append(h4); }
+    const ed = criarEditor(original[campo] || "", dica);
+    ed.addEventListener("input", () => { original[campo] = limparHtml(ed.innerHTML); salvar(); });
+    vista.append(barraFerramentas(ed), ed);
+  };
+  vista.classList.toggle("reuniao", n.categoria === "reuniao");
+  if (n.categoria === "reuniao") {
+    area("Antes da reunião", "antesHtml", "Pauta, o que levar, perguntas...");
+    area("Depois da reunião", "depoisHtml", "O que foi decidido, próximos passos...");
+  } else area("", "notaHtml", "Escreva as anotações desta tarefa...");
 }
-const editarNotaAberta = () => { const n = notaAtual(); if (n) abrirItem(n, "dia"); };
+// Editor com negrito e cores; colar entra como texto simples
+function criarEditor(html, dica) {
+  const ed = document.createElement("div");
+  ed.className = "editor"; ed.contentEditable = "true"; ed.setAttribute("role", "textbox");
+  ed.dataset.placeholder = dica; ed.innerHTML = html;
+  ed.onpaste = colarTexto;
+  return ed;
+}
+function barraFerramentas(editor) {
+  const barra = document.createElement("div");
+  barra.className = "ferramentas compacta";
+  barra.innerHTML = document.getElementById("modeloFerramentas").innerHTML;
+  ligarFerramentas(barra, editor);
+  return barra;
+}
+const editarNotaAberta = () => {
+  const n = notaAtual();
+  if (!n) return;
+  if (n.html !== undefined) abrirItem(n, "dia"); else abrirPopup(n.rec || n);
+};
 document.getElementById("editarNota").onclick = editarNotaAberta;
-document.getElementById("notaVista").onclick = editarNotaAberta;
 document.getElementById("novaNota").onclick = () => abrirItem(null, "dia");
 
 // ================= Pop-up =================
@@ -670,13 +796,28 @@ const popup = document.getElementById("popup");
 const fTexto = document.getElementById("fTexto");
 const fHora = document.getElementById("fHora");
 const erroForm = document.getElementById("erroForm");
-let editando = null; // tarefa sendo editada (null = nova)
+const fNotaTarefa = document.getElementById("fNotaTarefa");
+const form = document.getElementById("form");
+let editando = null; // tarefa sendo editada (null = nova); recorrente = o original em dados.recorrentes
+
+const ehRecorrente = t => dados.recorrentes.includes(t);
+const categoriaDe = t => !t ? "tarefa" : ehRecorrente(t) ? "recorrente" : t.categoria || "tarefa";
+function mostrarCategoria(cat) {
+  form.dataset.cat = cat;
+  document.querySelector(`input[name=categoria][value=${cat}]`).checked = true;
+}
+document.querySelectorAll("input[name=categoria]").forEach(r => r.onchange = () => mostrarCategoria(r.value));
 
 function abrirPopup(tarefa = null) {
   editando = tarefa;
   document.getElementById("popupTitulo").textContent = tarefa ? "Editar tarefa" : "Nova tarefa";
+  mostrarCategoria(categoriaDe(tarefa));
   fTexto.value = tarefa?.texto || "";
   fHora.value = tarefa?.hora || "";
+  document.getElementById("fInicio").value = tarefa?.inicio || chaveData(dataAtual);
+  document.getElementById("fFim").value = tarefa?.fim || "";
+  document.getElementById("fRepete").value = tarefa?.repete || "semanal";
+  fNotaTarefa.innerHTML = tarefa?.notaHtml || "";
   document.querySelector(`input[name=tipo][value=${tarefa?.tipo || "fixa"}]`).checked = true;
   document.querySelector(`input[name=cor][value="${tarefa?.cor || ""}"]`).checked = true;
   document.getElementById("fApagar").style.display = tarefa ? "" : "none";
@@ -691,22 +832,45 @@ function salvarTarefa() {
   const hora = fHora.value;
   const tipo = document.querySelector("input[name=tipo]:checked").value;
   const cor = document.querySelector("input[name=cor]:checked").value;
-  if (!texto) { erroForm.textContent = "Escreva a tarefa."; fTexto.focus(); return; }
-  if (tipo === "fixa" && !hora) { erroForm.textContent = "Tarefa fixa precisa de horário."; fHora.focus(); return; }
+  const cat = form.dataset.cat;
+  const inicio = document.getElementById("fInicio").value;
+  const fim = document.getElementById("fFim").value;
+  const repete = document.getElementById("fRepete").value;
+  if (!texto) { erroForm.textContent = "Escreva a descrição."; fTexto.focus(); return; }
+  if (tipo === "fixa" && !hora) { erroForm.textContent = "Horário fixo precisa de horário."; fHora.focus(); return; }
+  if (cat === "recorrente" && !inicio) { erroForm.textContent = "Escolha a data de início."; return; }
+  if (cat === "recorrente" && fim && fim < inicio) { erroForm.textContent = "O fim tem que ser depois do início."; return; }
 
-  if (editando) Object.assign(editando, { texto, hora, tipo, cor });
-  else dia().tarefas.push({ id: novoId(), texto, hora, tipo, cor, feita: false });
+  const campos = { texto, hora, tipo, cor };
+  if (cat !== "reuniao") campos.notaHtml = limparHtml(fNotaTarefa.innerHTML);
+  if (cat === "recorrente") Object.assign(campos, { inicio, fim, repete });
+  else campos.categoria = cat;
+
+  if (editando && ehRecorrente(editando) === (cat === "recorrente")) Object.assign(editando, campos);
+  else {
+    // Nova, ou mudou entre recorrente e não recorrente: sai de um lugar e entra no outro
+    const t = editando ? { ...editando, ...campos } : { id: novoId(), ...campos, feita: false };
+    if (editando) removerTarefa(editando);
+    if (cat === "recorrente") { delete t.categoria; delete t.feita; t.feitas ??= {}; dados.recorrentes.push(t); }
+    else { delete t.inicio; delete t.fim; delete t.repete; delete t.feitas; dia().tarefas.push(t); }
+    notaAberta = t.id;
+  }
   popup.close(); salvar(); desenhar();
+}
+function removerTarefa(t) {
+  if (ehRecorrente(t)) dados.recorrentes.splice(dados.recorrentes.indexOf(t), 1);
+  else dia().tarefas = dia().tarefas.filter(x => x !== t);
 }
 document.querySelector("#form .salvar").onclick = salvarTarefa;
 // Enter nos campos também salva
 [fTexto, fHora].forEach(c => c.onkeydown = e => { if (e.key === "Enter") { e.preventDefault(); salvarTarefa(); } });
 document.getElementById("fCancelar").onclick = () => popup.close();
 document.getElementById("fApagar").onclick = () => {
-  const d = dia();
-  d.tarefas = d.tarefas.filter(t => t !== editando);
+  removerTarefa(editando);
   popup.close(); salvar(); desenhar();
 };
+fNotaTarefa.before(barraFerramentas(fNotaTarefa));
+fNotaTarefa.onpaste = e => colarTexto(e);
 document.getElementById("novaTarefa").onclick = () => abrirPopup();
 
 // ================= Calendário do mês =================
@@ -774,16 +938,16 @@ function desenharCalendario() {
   const cabem = window.innerWidth <= 700 ? 8 : Math.max(1, Math.floor((alturaDia - 34) / ALTURA_CHIP));
 
   for (const { cel, info, chave } of dias) {
-    if (info) {
-      const itens = ordenar(info.tarefas);
-      const qtdNotas = info.anotacoes?.length || 0;
+    const itens = ordenar(tarefasDoDia(chave));
+    if (info || itens.length) {
+      const qtdNotas = info?.anotacoes?.length || 0;
       const temNota = qtdNotas > 0;
       let mostrar = cabem - (temNota ? 1 : 0);
       if (itens.length > mostrar) mostrar = Math.max(1, mostrar - 1); // espaço para o "+N mais" (mostra ao menos 1)
       for (const t of itens.slice(0, mostrar)) {
         const chip = document.createElement("span");
         chip.className = "chip" + (t.tipo === "movel" ? " movel" : "") + (t.feita ? " feita" : "") + (atrasada(t, chave) ? " atrasada" : "");
-        chip.textContent = (t.hora ? t.hora + " " : "") + t.texto;
+        chip.textContent = (ICONE_CATEGORIA[t.categoria] || "") + (t.hora ? t.hora + " " : "") + t.texto;
         if (t.cor && !chip.classList.contains("atrasada")) { chip.style.background = t.cor; chip.classList.add("colorida"); }
         cel.append(chip);
       }
@@ -1005,24 +1169,29 @@ fPos.onkeydown = e => { if (e.key === "Enter") { e.preventDefault(); salvarItem(
 // Enter no título pula para o texto
 fTituloItem.onkeydown = e => { if (e.key === "Enter") { e.preventDefault(); if (e.ctrlKey) salvarItem(); else fItem.focus(); } };
 // ----- Editor com negrito e cores -----
-document.querySelectorAll("#ferramentas [data-cmd]").forEach(b => {
-  b.onmousedown = e => e.preventDefault(); // não tira o cursor do texto
-  b.onclick = () => { document.execCommand(b.dataset.cmd); fItem.focus(); };
-});
-document.querySelectorAll("#ferramentas [data-cor]").forEach(b => {
-  b.onmousedown = e => e.preventDefault();
-  b.onclick = () => {
-    document.execCommand("styleWithCSS", false, true);
-    // "padrao" usa uma cor-marcador que limparHtml() remove, voltando à cor do tema
-    document.execCommand("foreColor", false, b.dataset.cor === "padrao" ? COR_PADRAO : b.dataset.cor);
-    fItem.focus();
-  };
-});
+function ligarFerramentas(barra, editor) {
+  barra.querySelectorAll("[data-cmd]").forEach(b => {
+    b.onmousedown = e => e.preventDefault(); // não tira o cursor do texto
+    b.onclick = () => { editor.focus(); document.execCommand(b.dataset.cmd); editor.dispatchEvent(new Event("input")); };
+  });
+  barra.querySelectorAll("[data-cor]").forEach(b => {
+    b.onmousedown = e => e.preventDefault();
+    b.onclick = () => {
+      editor.focus();
+      document.execCommand("styleWithCSS", false, true);
+      // "padrao" usa uma cor-marcador que limparHtml() remove, voltando à cor do tema
+      document.execCommand("foreColor", false, b.dataset.cor === "padrao" ? COR_PADRAO : b.dataset.cor);
+      editor.dispatchEvent(new Event("input"));
+    };
+  });
+}
+ligarFerramentas(document.getElementById("ferramentas"), fItem);
 // Colar sempre como texto simples (evita trazer formatação estranha de outros sites)
-fItem.onpaste = e => {
+function colarTexto(e) {
   e.preventDefault();
   document.execCommand("insertText", false, e.clipboardData.getData("text/plain"));
-};
+}
+fItem.onpaste = colarTexto;
 
 // Guarda só negrito, cor e quebras de linha; remove todo o resto
 const COR_PADRAO = "#010203";
@@ -1092,20 +1261,21 @@ btnAvisos.onclick = async () => {
 
 function verificarAvisos() {
   if (!("Notification" in window) || Notification.permission !== "granted") return;
-  const hoje = dados.dias[chaveData(new Date())];
-  if (!hoje) return;
+  const chaveHoje = chaveData(new Date());
+  const tarefas = tarefasDoDia(chaveHoje);
   const agora = agoraMin();
   // Fixas: avisa no horário (com até 5 min de tolerância, caso o PC estivesse ocupado)
-  for (const t of hoje.tarefas) {
-    if (t.tipo !== "fixa" || t.feita || !t.hora || avisados.has(t.id)) continue;
+  for (const t of tarefas) {
+    const id = t.id + chaveHoje; // recorrentes repetem o id em vários dias
+    if (t.tipo !== "fixa" || t.feita || !t.hora || avisados.has(id)) continue;
     const m = minutos(t.hora);
     if (agora >= m && agora < m + 5) {
-      avisados.add(t.id);
+      avisados.add(id);
       new Notification(`⏰ ${t.hora}: ${t.texto}`, { body: "Tarefa com horário fixo", tag: t.id });
     }
   }
   // Móveis: um lembrete à noite com o que falta
-  const faltam = hoje.tarefas.filter(t => t.tipo === "movel" && !t.feita);
+  const faltam = tarefas.filter(t => t.tipo === "movel" && !t.feita);
   const chaveLembrete = "movel-" + chaveData(new Date());
   if (faltam.length && agora >= HORA_LEMBRETE_MOVEIS * 60 && !avisados.has(chaveLembrete)) {
     avisados.add(chaveLembrete);
@@ -1130,7 +1300,7 @@ mostrarModo(dados.config.modo);
 <script type="module">
 // ================= Nuvem (Firebase): login com Google e sincronização =================
 // Cada pessoa logada tem seus dados em usuarios/{uid}:
-//   dias/{AAAA-MM-DD} -> { tarefas, anotacoes }     meta/lista -> { itens }
+//   dias/{AAAA-MM-DD} -> { tarefas, anotacoes }     meta/lista -> { itens }     meta/recorrentes -> { itens }
 // Tema e página aberta continuam só neste aparelho (cada tela pode ter o seu).
 // Configuração do app web no Firebase (estas chaves são públicas; quem protege os dados são as regras do Firestore)
 const FIREBASE_CONFIG = {
@@ -1201,7 +1371,9 @@ async function iniciar() {
   // migrarDia converte o texto antigo "notas" (de aparelhos com a versão anterior) em anotação
   const diaLimpo = d => { const { tarefas, anotacoes } = window.migrarDia({ tarefas: d.tarefas || [], anotacoes: d.anotacoes || [], notas: d.notas || "" }); return { tarefas, anotacoes }; };
   const diaVazio = d => !d.tarefas.length && !d.anotacoes.length;
-  const trocarLista = itens => dados.lista.splice(0, dados.lista.length, ...itens); // mantém o mesmo array
+  // Listas guardadas em meta/{nome}: a Lista sem data e as tarefas recorrentes
+  const METAS = ["lista", "recorrentes"];
+  const trocar = (nome, itens) => dados[nome].splice(0, dados[nome].length, ...itens); // mantém o mesmo array
   function redesenhar() {
     if (popup.open || popupItem.open) return; // não mexe na tela com um pop-up aberto
     desenhar();
@@ -1217,19 +1389,21 @@ async function iniciar() {
     const base = ["usuarios", u.uid];
 
     // 1ª carga: o que está na nuvem vale; o que só existe neste aparelho é enviado
-    const [snapDias, snapLista] = await Promise.all([
+    const [snapDias, ...snapMetas] = await Promise.all([
       getDocs(collection(db, ...base, "dias")),
-      getDoc(doc(db, ...base, "meta", "lista")),
+      ...METAS.map(nome => getDoc(doc(db, ...base, "meta", nome))),
     ]);
     snapDias.forEach(d => {
       dados.dias[d.id] = diaLimpo(d.data());
       // Dia ainda no formato antigo: fica sem marcar como enviado, para subir já convertido
       if (d.data().notas === undefined) enviados["dia:" + d.id] = JSON.stringify(dados.dias[d.id]);
     });
-    if (snapLista.exists() && (snapLista.data().itens || []).length) {
-      trocarLista(snapLista.data().itens);
-      enviados.lista = JSON.stringify(dados.lista);
-    }
+    METAS.forEach((nome, i) => {
+      const snap = snapMetas[i];
+      if (!snap.exists() || !(snap.data().itens || []).length) return;
+      trocar(nome, snap.data().itens);
+      enviados[nome] = JSON.stringify(dados[nome]);
+    });
     salvar(); // grava aqui e envia o que faltava na nuvem
     redesenhar();
 
@@ -1244,11 +1418,11 @@ async function iniciar() {
       }
       if (mudou) { salvar(); redesenhar(); }
     }));
-    pararDeOuvir.push(onSnapshot(doc(db, ...base, "meta", "lista"), snap => {
+    for (const nome of METAS) pararDeOuvir.push(onSnapshot(doc(db, ...base, "meta", nome), snap => {
       if (snap.metadata.hasPendingWrites || !snap.exists()) return;
       const itens = snap.data().itens || [], json = JSON.stringify(itens);
-      if (enviados.lista === json) return;
-      trocarLista(itens); enviados.lista = json;
+      if (enviados[nome] === json) return;
+      trocar(nome, itens); enviados[nome] = json;
       salvar(); redesenhar();
     }));
     mostrarConectado();
@@ -1270,10 +1444,11 @@ async function iniciar() {
       enviados[id] = json;
       envios.push(setDoc(doc(db, ...base, "dias", chave), limpo));
     }
-    const jsonLista = JSON.stringify(dados.lista);
-    if (enviados.lista !== jsonLista && !(enviados.lista === undefined && !dados.lista.length)) {
-      enviados.lista = jsonLista;
-      envios.push(setDoc(doc(db, ...base, "meta", "lista"), { itens: dados.lista }));
+    for (const nome of METAS) {
+      const json = JSON.stringify(dados[nome]);
+      if (enviados[nome] === json || (enviados[nome] === undefined && !dados[nome].length)) continue;
+      enviados[nome] = json;
+      envios.push(setDoc(doc(db, ...base, "meta", nome), { itens: dados[nome] }));
     }
     if (!envios.length) return;
     status(navigator.onLine ? "Salvando…" : "Offline", navigator.onLine ? "Salvando…" : "Sem internet: salva quando voltar");
