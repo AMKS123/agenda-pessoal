@@ -175,6 +175,7 @@
   .item .setas button:hover { border-color: var(--accent); color: var(--ink); }
   .item .setas button:disabled { opacity: .3; cursor: default; }
   .item.arrastando { opacity: .4; }
+  #nuvem.confirmar { background: var(--late); border-color: var(--late); color: #fff; }
   .item.alvo-antes { box-shadow: inset 0 3px 0 var(--accent); }
   .item.alvo-depois { box-shadow: inset 0 -3px 0 var(--accent); }
   /* Pop-up grande da Lista (futura área de trabalho) */
@@ -304,6 +305,7 @@
       <option value="pastel">Fundo pastel</option>
       <option value="escuro">Fundo escuro</option>
     </select>
+    <button class="btn" id="nuvem" style="display:none">☁ Entrar com Google</button>
     <button class="btn" id="avisos">🔔 Ativar avisos</button>
   </div>
 </header>
@@ -434,6 +436,7 @@ for (const d of Object.values(dados.dias)) {
 
 function salvar() {
   try { localStorage.setItem(CHAVE, JSON.stringify(dados)); } catch {}
+  window.nuvemAgendar?.(); // envia para o Firebase, se estiver logado
 }
 
 // ================= Datas =================
@@ -996,6 +999,142 @@ salvar(); // grava a conversão do formato antigo, se houve
 estadoAvisos();
 desenhar();
 mostrarModo(dados.config.modo);
+</script>
+
+<script type="module">
+// ================= Nuvem (Firebase): login com Google e sincronização =================
+// Cada pessoa logada tem seus dados em usuarios/{uid}:
+//   dias/{AAAA-MM-DD} -> { tarefas, notas }     meta/lista -> { itens }
+// Tema e página aberta continuam só neste aparelho (cada tela pode ter o seu).
+const FIREBASE_CONFIG = null; // configuração do app web no Firebase
+const VERSAO = "10.12.2";
+
+const btn = document.getElementById("nuvem");
+if (FIREBASE_CONFIG) iniciar().catch(e => { console.error(e); btn.style.display = ""; btn.textContent = "☁ Erro na nuvem"; });
+
+async function iniciar() {
+  const url = m => `https://www.gstatic.com/firebasejs/${VERSAO}/firebase-${m}.js`;
+  const { initializeApp } = await import(url("app"));
+  const { getAuth, GoogleAuthProvider, signInWithPopup, signInWithRedirect, signOut, onAuthStateChanged } = await import(url("auth"));
+  const { initializeFirestore, persistentLocalCache, collection, doc, getDocs, getDoc, setDoc, onSnapshot } = await import(url("firestore"));
+
+  const app = initializeApp(FIREBASE_CONFIG);
+  const auth = getAuth(app);
+  const db = initializeFirestore(app, { localCache: persistentLocalCache() }); // funciona offline e envia depois
+
+  let usuario = null;
+  let pararDeOuvir = [];
+  let enviados = {};  // último conteúdo enviado/recebido de cada documento, para só enviar o que mudou
+  let espera;
+
+  btn.style.display = "";
+  const status = (texto, dica = "") => { btn.textContent = texto; btn.title = dica; };
+  const mostrarConectado = () => status("☁ " + (usuario.displayName?.split(" ")[0] || "Conectado"),
+    `Sincronizado como ${usuario.email}. Clique para sair.`);
+
+  // ----- Entrar e sair -----
+  btn.onclick = async () => {
+    if (!usuario) {
+      const provedor = new GoogleAuthProvider();
+      try { await signInWithPopup(auth, provedor); }
+      catch (e) {
+        // Alguns celulares bloqueiam a janela de login; nesse caso troca de página para entrar
+        if (e.code === "auth/popup-blocked" || e.code === "auth/operation-not-supported-in-this-environment") signInWithRedirect(auth, provedor);
+        else if (e.code !== "auth/popup-closed-by-user" && e.code !== "auth/cancelled-popup-request") { console.error(e); status("☁ Erro ao entrar", e.code); }
+      }
+      return;
+    }
+    // Sair pede confirmação (segundo clique)
+    if (!btn.classList.contains("confirmar")) {
+      btn.classList.add("confirmar"); btn.textContent = "Sair da conta?";
+      setTimeout(() => { btn.classList.remove("confirmar"); if (usuario) mostrarConectado(); }, 3000);
+      return;
+    }
+    btn.classList.remove("confirmar");
+    await signOut(auth);
+  };
+
+  const diaLimpo = d => ({ tarefas: d.tarefas || [], notas: d.notas || "" });
+  const diaVazio = d => !d.tarefas.length && !d.notas.trim();
+  const trocarLista = itens => dados.lista.splice(0, dados.lista.length, ...itens); // mantém o mesmo array
+  function redesenhar() {
+    if (popup.open || popupItem.open) return; // não mexe na tela com um pop-up aberto
+    desenhar();
+    if (dados.config.modo === "lista") desenharLista();
+  }
+
+  onAuthStateChanged(auth, async u => {
+    pararDeOuvir.forEach(parar => parar());
+    pararDeOuvir = []; enviados = {}; usuario = u;
+    if (!u) { status("☁ Entrar com Google", "Entre para salvar na nuvem e sincronizar entre aparelhos"); return; }
+
+    status("☁ Sincronizando…");
+    const base = ["usuarios", u.uid];
+
+    // 1ª carga: o que está na nuvem vale; o que só existe neste aparelho é enviado
+    const [snapDias, snapLista] = await Promise.all([
+      getDocs(collection(db, ...base, "dias")),
+      getDoc(doc(db, ...base, "meta", "lista")),
+    ]);
+    snapDias.forEach(d => {
+      dados.dias[d.id] = diaLimpo(d.data());
+      enviados["dia:" + d.id] = JSON.stringify(dados.dias[d.id]);
+    });
+    if (snapLista.exists() && (snapLista.data().itens || []).length) {
+      trocarLista(snapLista.data().itens);
+      enviados.lista = JSON.stringify(dados.lista);
+    }
+    salvar(); // grava aqui e envia o que faltava na nuvem
+    redesenhar();
+
+    // Mudanças feitas em outros aparelhos chegam aqui
+    pararDeOuvir.push(onSnapshot(collection(db, ...base, "dias"), snap => {
+      let mudou = false;
+      for (const ch of snap.docChanges()) {
+        if (ch.doc.metadata.hasPendingWrites || ch.type === "removed") continue;
+        const d = diaLimpo(ch.doc.data()), json = JSON.stringify(d);
+        if (enviados["dia:" + ch.doc.id] === json) continue;
+        dados.dias[ch.doc.id] = d; enviados["dia:" + ch.doc.id] = json; mudou = true;
+      }
+      if (mudou) { salvar(); redesenhar(); }
+    }));
+    pararDeOuvir.push(onSnapshot(doc(db, ...base, "meta", "lista"), snap => {
+      if (snap.metadata.hasPendingWrites || !snap.exists()) return;
+      const itens = snap.data().itens || [], json = JSON.stringify(itens);
+      if (enviados.lista === json) return;
+      trocarLista(itens); enviados.lista = json;
+      salvar(); redesenhar();
+    }));
+    mostrarConectado();
+  });
+
+  // ----- Envio (espera 0,7s sem mudanças para não enviar a cada letra) -----
+  window.nuvemAgendar = () => {
+    if (!usuario) return;
+    clearTimeout(espera);
+    espera = setTimeout(enviar, 700);
+  };
+  async function enviar() {
+    if (!usuario) return;
+    const base = ["usuarios", usuario.uid];
+    const envios = [];
+    for (const [chave, d] of Object.entries(dados.dias)) {
+      const limpo = diaLimpo(d), json = JSON.stringify(limpo), id = "dia:" + chave;
+      if (enviados[id] === json || (enviados[id] === undefined && diaVazio(limpo))) continue;
+      enviados[id] = json;
+      envios.push(setDoc(doc(db, ...base, "dias", chave), limpo));
+    }
+    const jsonLista = JSON.stringify(dados.lista);
+    if (enviados.lista !== jsonLista && !(enviados.lista === undefined && !dados.lista.length)) {
+      enviados.lista = jsonLista;
+      envios.push(setDoc(doc(db, ...base, "meta", "lista"), { itens: dados.lista }));
+    }
+    if (!envios.length) return;
+    status(navigator.onLine ? "☁ Salvando…" : "☁ Sem internet, salva depois");
+    try { await Promise.all(envios); mostrarConectado(); }
+    catch (e) { console.error(e); status("☁ Erro ao salvar", e.code || ""); }
+  }
+}
 </script>
 </body>
 </html>
