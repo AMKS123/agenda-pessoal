@@ -244,13 +244,14 @@
   .tarefa.nota .icone { text-align: center; }
   .tarefa.nota .texto { grid-column: 2 / 5; font-weight: 600; }
   .tarefa.nota.aberta { background: color-mix(in srgb, var(--accent) 14%, transparent); }
-  #notaVista { padding: 0 16px; font-size: 1.05rem; line-height: 1.6; overflow-wrap: anywhere; cursor: text; }
-  #notaVista h3 { margin: 4px 0 12px; font-size: 1.3rem; }
+  /* Painel Anotação: título em cima e as áreas de texto esticam até o fim da tela */
+  #anotacoes.ativo { display: flex; flex-direction: column; }
+  #notaTitulo { margin: 0; font-size: 1.3rem; overflow-wrap: anywhere; }
+  #notaVista { flex: 1; display: flex; flex-direction: column; padding: 0 16px 4px; font-size: 1.05rem; line-height: 1.6; overflow-wrap: anywhere; cursor: text; }
   #notaVista .vazio { cursor: default; }
-  #notaVista .meta { color: var(--muted); font-size: .9rem; margin: -6px 0 12px; }
-  #notaVista h4 { margin: 14px 0 6px; font-size: .8rem; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
-  #notaVista .editor { min-height: 40vh; }
-  #notaVista.reuniao .editor { min-height: 25vh; }
+  #notaVista h4 { margin: 12px 0 6px; font-size: .8rem; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+  #notaVista h4:first-child { margin-top: 0; }
+  #notaVista .editor { flex: 1 1 0; min-height: 140px; }
   .tarefa .cat { margin-right: 4px; }
   #fTituloItem { width: 100%; padding: 8px 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--bg); font-size: 1.1rem; font-weight: 600; }
   #fTituloItem:focus { outline: none; border-color: var(--accent); }
@@ -314,6 +315,7 @@
     main { grid-template-columns: repeat(3, 1fr); grid-template-areas: "tar not cal"; padding-top: 16px; }
     #tarefas { grid-area: tar; } #anotacoes { grid-area: not; }
     .painel, .painel.ativo { display: block; border-radius: 10px; }
+    #anotacoes { display: flex; flex-direction: column; }
     .cal .cel { min-height: 0; }
   }
   /* 4K sem ampliação do Windows (100%): letras maiores */
@@ -367,7 +369,7 @@
 
   <section class="painel" id="anotacoes">
     <div class="topo-tarefas">
-      <h2>Anotação</h2>
+      <h3 id="notaTitulo"></h3>
       <button class="btn" id="editarNota">✏ Editar</button>
     </div>
     <div id="notaVista"></div>
@@ -590,7 +592,6 @@ function tarefasDoDia(chave) {
   return [...(dados.dias[chave]?.tarefas || []), ...recs];
 }
 const ICONE_CATEGORIA = { recorrente: "🔁", reuniao: "👥" };
-const NOME_REPETE = { diaria: "Todo dia", semanal: "Toda semana", mensal: "Todo mês", anual: "Todo ano" };
 const dataCurta = chave => chave.split("-").reverse().join("/");
 
 // Cores de post-it para associar prioridades ("" = sem cor)
@@ -749,15 +750,16 @@ function desenharNota() {
   const n = notaAtual();
   vista.dataset.id = n ? n.id : "";
   document.getElementById("editarNota").style.display = n ? "" : "none";
+  const h3 = document.getElementById("notaTitulo");
+  h3.textContent = "";
   vista.replaceChildren();
   if (!n) {
     vista.innerHTML = `<p class="vazio">Clique numa tarefa ou anotação 📝 da lista do dia para abrir aqui.</p>`;
     return;
   }
-  const h3 = document.createElement("h3");
-  vista.append(h3);
+  const data = dataCurta(chaveData(dataAtual)) + " · ";
   if (n.html !== undefined) { // anotação do dia: só leitura; clicar abre o pop-up
-    h3.textContent = "📝 " + tituloNota(n);
+    h3.textContent = "📝 " + data + tituloNota(n);
     const corpo = document.createElement("div");
     corpo.innerHTML = n.html;
     corpo.onclick = editarNotaAberta;
@@ -766,19 +768,13 @@ function desenharNota() {
   }
   // Tarefa: as anotações são editadas direto aqui e salvas sozinhas
   const original = n.rec || n;
-  h3.textContent = (ICONE_CATEGORIA[n.categoria] ? ICONE_CATEGORIA[n.categoria] + " " : "") + (n.hora ? n.hora + " · " : "") + n.texto;
-  const meta = document.createElement("p");
-  meta.className = "meta";
-  meta.textContent = n.categoria === "reuniao" ? "Reunião" : n.rec
-    ? `${NOME_REPETE[n.repete]}, de ${dataCurta(n.inicio)}${n.fim ? " até " + dataCurta(n.fim) : " em diante"}` : "Tarefa";
-  vista.append(meta);
+  h3.textContent = (ICONE_CATEGORIA[n.categoria] ? ICONE_CATEGORIA[n.categoria] + " " : "") + data + (n.hora ? n.hora + " · " : "") + n.texto;
   const area = (rotulo, campo, dica) => {
     if (rotulo) { const h4 = document.createElement("h4"); h4.textContent = rotulo; vista.append(h4); }
     const ed = criarEditor(original[campo] || "", dica);
     ed.addEventListener("input", () => { original[campo] = limparHtml(ed.innerHTML); salvar(); });
     vista.append(barraFerramentas(ed), ed);
   };
-  vista.classList.toggle("reuniao", n.categoria === "reuniao");
   if (n.categoria === "reuniao") {
     area("Antes da reunião", "antesHtml", "Pauta, o que levar, perguntas...");
     area("Depois da reunião", "depoisHtml", "O que foi decidido, próximos passos...");
