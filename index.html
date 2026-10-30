@@ -235,6 +235,8 @@
   .ferramentas button { border: 1px solid transparent; background: none; border-radius: 6px; cursor: pointer; min-width: 32px; height: 32px; }
   .ferramentas button:hover { border-color: var(--accent); }
   .ferramentas .negrito { font-weight: 800; font-size: 1.05rem; }
+  .ferramentas .tamanho { font-weight: 700; font-size: .85rem; }
+  .ferramentas .tamanho[data-tam="1"] { font-size: 1.05rem; }
   .ferramentas .cor { min-width: 26px; width: 26px; height: 26px; border-radius: 50%; border: 2px solid var(--paper); box-shadow: 0 0 0 1px var(--line); }
   .ferramentas .cor.padrao { background: var(--ink); }
   .ferramentas .posicao { margin-left: auto; display: flex; align-items: center; gap: 6px; font-size: .85rem; color: var(--muted); }
@@ -438,6 +440,8 @@
 <!-- Modelo dos botões de negrito e cores, copiado para cada editor -->
 <template id="modeloFerramentas">
   <button type="button" class="negrito" data-cmd="bold" title="Negrito (Ctrl+B)">B</button>
+  <button type="button" class="tamanho" data-tam="-1" title="Diminuir a letra do texto selecionado">A−</button>
+  <button type="button" class="tamanho" data-tam="1" title="Aumentar a letra do texto selecionado">A+</button>
   <span class="sep"></span>
   <button type="button" class="cor padrao" data-cor="padrao" title="Cor padrão"></button>
   <button type="button" class="cor" data-cor="#e53935" style="background:#e53935" title="Vermelho"></button>
@@ -454,6 +458,8 @@
     <input type="text" id="fTituloItem" placeholder="Título" autocomplete="off">
     <div class="ferramentas" id="ferramentas">
       <button type="button" class="negrito" data-cmd="bold" title="Negrito (Ctrl+B)">B</button>
+  <button type="button" class="tamanho" data-tam="-1" title="Diminuir a letra do texto selecionado">A−</button>
+  <button type="button" class="tamanho" data-tam="1" title="Aumentar a letra do texto selecionado">A+</button>
       <span class="sep"></span>
       <button type="button" class="cor padrao" data-cor="padrao" title="Cor padrão"></button>
       <button type="button" class="cor" data-cor="#e53935" style="background:#e53935" title="Vermelho"></button>
@@ -1362,7 +1368,43 @@ fPos.onkeydown = e => { if (e.key === "Enter") { e.preventDefault(); salvarItem(
 // Enter no título pula para o texto
 fTituloItem.onkeydown = e => { if (e.key === "Enter") { e.preventDefault(); if (e.ctrlKey) salvarItem(); else fItem.focus(); } };
 // ----- Editor com negrito e cores -----
+// Tamanhos de letra (em rem, para não acumular quando um tamanho fica dentro do outro)
+const TAMANHOS = [0.75, 0.9, 1.05, 1.25, 1.5, 1.8, 2.2];
+const PALAVRA_TAMANHO = { "x-small": 0, small: 1, medium: 2, large: 3, "x-large": 4, "xx-large": 5, "xxx-large": 6 };
+const remDe = indice => TAMANHOS[Math.max(0, Math.min(TAMANHOS.length - 1, indice))] + "rem";
+function mudarTamanho(editor, passo) {
+  const sel = getSelection();
+  if (!sel.rangeCount || !editor.contains(sel.anchorNode)) return;
+  // Tamanho atual onde está o cursor, para subir ou descer um degrau
+  const el = sel.anchorNode.nodeType === 1 ? sel.anchorNode : sel.anchorNode.parentElement;
+  const raiz = parseFloat(getComputedStyle(document.documentElement).fontSize);
+  const atual = parseFloat(getComputedStyle(el).fontSize) / raiz;
+  let indice = 0;
+  TAMANHOS.forEach((t, i) => { if (Math.abs(t - atual) < Math.abs(TAMANHOS[indice] - atual)) indice = i; });
+  // Sem texto selecionado, cliques seguidos no mesmo lugar continuam de onde o último parou
+  const p = editor._tamPendente;
+  if (sel.isCollapsed && p && p.no === sel.anchorNode && p.pos === sel.anchorOffset) indice = p.indice;
+  const novo = Math.max(0, Math.min(TAMANHOS.length - 1, indice + passo));
+  document.execCommand("styleWithCSS", false, true);
+  document.execCommand("fontSize", false, String(novo + 1));
+  normalizarTamanhos(editor);
+  editor._tamPendente = sel.isCollapsed ? { no: sel.anchorNode, pos: sel.anchorOffset, indice: novo } : null;
+}
+// O navegador escreve tamanhos como "large" ou <font size>; troca pelo tamanho em rem da tabela
+function normalizarTamanhos(editor) {
+  editor.querySelectorAll("[style*='font-size']").forEach(el => {
+    const i = PALAVRA_TAMANHO[el.style.fontSize];
+    if (i !== undefined) el.style.fontSize = remDe(i);
+  });
+  editor.querySelectorAll("font[size]").forEach(f => { f.style.fontSize = remDe(Number(f.getAttribute("size")) - 1); f.removeAttribute("size"); });
+}
+// Texto digitado logo depois de A+/A− também recebe o tamanho certo
+document.addEventListener("input", e => { if (e.target.classList?.contains("editor")) normalizarTamanhos(e.target); }, true);
 function ligarFerramentas(barra, editor) {
+  barra.querySelectorAll("[data-tam]").forEach(b => {
+    b.onmousedown = e => e.preventDefault();
+    b.onclick = () => { editor.focus(); mudarTamanho(editor, Number(b.dataset.tam)); editor.dispatchEvent(new Event("input")); };
+  });
   barra.querySelectorAll("[data-cmd]").forEach(b => {
     b.onmousedown = e => e.preventDefault(); // não tira o cursor do texto
     b.onclick = () => { editor.focus(); document.execCommand(b.dataset.cmd); editor.dispatchEvent(new Event("input")); };
@@ -1411,6 +1453,11 @@ function limparHtml(html) {
       const cor = corBruta && !mesmaCor(corBruta, COR_PADRAO) ? corBruta : "";
       if (negrito) { const b = document.createElement("b"); alvo.append(b); alvo = b; }
       if (cor) { const sp = document.createElement("span"); sp.style.color = cor; alvo.append(sp); alvo = sp; }
+      // Tamanho da letra: guarda só os da tabela (rem)
+      const tamBruto = no.style?.fontSize || "";
+      const tam = tamBruto.endsWith("rem") ? tamBruto : PALAVRA_TAMANHO[tamBruto] !== undefined ? remDe(PALAVRA_TAMANHO[tamBruto])
+        : tag === "FONT" && no.getAttribute("size") ? remDe(Number(no.getAttribute("size")) - 1) : "";
+      if (tam) { const sp = document.createElement("span"); sp.style.fontSize = tam; alvo.append(sp); alvo = sp; }
       copiar(no, alvo);
     }
   };
