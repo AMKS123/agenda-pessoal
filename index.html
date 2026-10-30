@@ -229,6 +229,8 @@
     overflow: auto; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px;
     background: var(--bg); outline: none; line-height: 1.6; overflow-wrap: anywhere; cursor: text;
   }
+  /* Mantém o recuo feito com TAB (no editor e onde o texto é mostrado) */
+  .editor, #notaVista, .item .texto { white-space: pre-wrap; tab-size: 4; }
   .editor:focus { border-color: var(--accent); }
   /* Texto marcado com "cor padrão" aparece na cor do tema enquanto se edita */
   .editor [style*="rgb(1, 2, 3)"], .editor font[color="#010203"] { color: var(--ink) !important; }
@@ -1273,6 +1275,12 @@ function ligarFerramentas(barra, editor) {
   });
 }
 ligarFerramentas(document.getElementById("ferramentas"), fItem);
+// TAB nos campos de anotação avança o texto, como no Word (Shift+TAB continua indo para o campo anterior)
+document.addEventListener("keydown", e => {
+  if (e.key !== "Tab" || e.shiftKey || e.ctrlKey || e.altKey || !e.target.classList?.contains("editor")) return;
+  e.preventDefault();
+  document.execCommand("insertText", false, "\t");
+});
 // Colar sempre como texto simples (evita trazer formatação estranha de outros sites)
 function colarTexto(e) {
   e.preventDefault();
