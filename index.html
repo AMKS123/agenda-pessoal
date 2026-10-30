@@ -41,23 +41,40 @@
   .btn:hover { border-color: var(--accent); }
   .btn.principal { background: var(--accent); border-color: var(--accent); color: var(--paper); font-weight: 600; }
 
-  /* ===== Cabeçalho com a data ===== */
+  /* ===== Barra superior ===== */
+  /* Telas médias e grandes: uma linha. Celular: duas (modos + botões em cima, dia embaixo). */
   header {
     position: sticky; top: 0; z-index: 5; background: var(--bg);
-    display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px;
-    padding: 12px 16px; border-bottom: 1px solid var(--line);
+    display: flex; align-items: center; gap: 8px 12px;
+    padding: 8px 16px; border-bottom: 1px solid var(--line);
   }
-  .nav { display: flex; align-items: center; gap: 6px; }
-  #titulo { font-size: 1.25rem; font-weight: 600; margin: 0 8px; }
-  #seletorData, #tema { background: var(--paper); border: 1px solid var(--line); border-radius: 8px; padding: 5px 8px; }
-  .tools { display: flex; align-items: center; gap: 8px; margin-left: auto; flex-wrap: wrap; }
-  #resumo { color: var(--muted); font-size: .9rem; }
+  header .btn, .modos button { height: 2.2em; padding: 0 .7em; font-size: .9rem; border-radius: 8px; display: inline-flex; align-items: center; gap: 6px; }
+  header .btn.ico { width: 2.2em; padding: 0; justify-content: center; font-size: 1rem; }
+  .nav { display: flex; align-items: center; gap: 4px; min-width: 0; }
+  #titulo { font-size: 1.05rem; font-weight: 600; margin: 0 6px 0 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  #titulo .curto { display: none; }
+  .seletor { position: relative; overflow: hidden; }
+  .seletor input { position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%; }
+  .seletor input::-webkit-calendar-picker-indicator { position: absolute; inset: 0; width: 100%; height: 100%; cursor: pointer; }
+  .tools { display: flex; align-items: center; gap: 6px; margin-left: auto; flex-shrink: 0; }
+  #resumo { color: var(--muted); font-size: .85rem; margin-right: 6px; white-space: nowrap; }
+  .bolinha { width: 14px; height: 14px; border-radius: 50%; border: 1px solid var(--line);
+    background: linear-gradient(135deg, var(--paper) 50%, var(--accent) 50%); }
+  #nuvem .rot { max-width: 9em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  #nuvem.ligado { border-color: color-mix(in srgb, var(--done) 60%, var(--line)); }
+  #nuvem.ligado .i { color: var(--done); }
+  #nuvem.alerta { border-color: var(--late); color: var(--late); }
+
+  @media (max-width: 1400px) { #tema .rot, #avisos .rot { display: none; } }
+  @media (max-width: 1100px) {
+    #resumo { display: none; }
+    #titulo .longo { display: none; } #titulo .curto { display: inline; }
+  }
   @media (max-width: 700px) {
-    .nav { flex-wrap: wrap; width: 100%; }
-    #titulo { order: -1; width: 100%; margin: 0 0 4px; font-size: 1.1rem; }
-    #seletorData { margin-left: auto; }
-    .tools { margin-left: 0; width: 100%; }
-    #avisos { margin-left: auto; }
+    header { flex-wrap: wrap; padding: 8px 12px; }
+    .nav { order: 2; width: 100%; }
+    #titulo { flex: 1; margin: 0 4px; text-align: center; }
+    #nuvem:not(.alerta) .rot { display: none; }
   }
 
   /* ===== Abas ===== */
@@ -76,6 +93,8 @@
   /* ===== Lista de tarefas ===== */
   .topo-tarefas { display: flex; align-items: center; justify-content: space-between; padding: 0 16px 8px; }
   .topo-tarefas h2 { margin: 0; }
+  .topo-tarefas { gap: 12px; }
+  .topo-tarefas .btn { white-space: nowrap; flex-shrink: 0; }
   .lista { list-style: none; margin: 0; padding: 0 8px; }
   .tarefa {
     display: grid; grid-template-columns: 32px 64px 1fr auto auto; align-items: center; gap: 4px;
@@ -147,9 +166,9 @@
 
   /* ===== Alternar Agenda / Lista ===== */
   .modos { display: flex; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
-  .modos button { border: none; background: var(--paper); padding: 6px 14px; cursor: pointer; color: var(--muted); }
+  .modos button { border: none; border-radius: 0 !important; background: var(--paper); cursor: pointer; color: var(--muted); }
   .modos button.ativo { background: var(--accent); color: var(--paper); font-weight: 600; }
-  body.modo-lista .nav > :not(.modos), body.modo-lista #resumo, body.modo-lista main { display: none; }
+  body.modo-lista .nav, body.modo-lista #resumo, body.modo-lista main { display: none; }
   body:not(.modo-lista) #paginaLista { display: none; }
 
   /* ===== Página Lista (sem data) ===== */
@@ -287,26 +306,23 @@
 <body>
 
 <header>
+  <div class="modos" role="tablist">
+    <button data-modo="agenda" class="ativo">Agenda</button>
+    <button data-modo="lista">Lista</button>
+  </div>
   <div class="nav">
-    <div class="modos" role="tablist">
-      <button data-modo="agenda" class="ativo">Agenda</button>
-      <button data-modo="lista">Lista</button>
-    </div>
-    <button class="btn" id="ant" title="Dia anterior (Alt + ←)">‹</button>
+    <button class="btn ico" id="ant" title="Dia anterior (Alt + ←)" aria-label="Dia anterior">‹</button>
     <button class="btn" id="hoje">Hoje</button>
-    <button class="btn" id="prox" title="Próximo dia (Alt + →)">›</button>
-    <span id="titulo"></span>
-    <input type="date" id="seletorData" aria-label="Escolher data">
+    <button class="btn ico" id="prox" title="Próximo dia (Alt + →)" aria-label="Próximo dia">›</button>
+    <h1 id="titulo"><span class="longo"></span><span class="curto"></span></h1>
+    <!-- O campo de data fica invisível por cima do botão 📅: tocar nele abre o calendário do aparelho -->
+    <label class="btn ico seletor" title="Escolher data">📅<input type="date" id="seletorData" aria-label="Escolher data"></label>
   </div>
   <div class="tools">
     <span id="resumo"></span>
-    <select id="tema" title="Cor de fundo">
-      <option value="branco">Fundo branco</option>
-      <option value="pastel">Fundo pastel</option>
-      <option value="escuro">Fundo escuro</option>
-    </select>
-    <button class="btn" id="nuvem" style="display:none">☁ Entrar com Google</button>
-    <button class="btn" id="avisos">🔔 Ativar avisos</button>
+    <button class="btn" id="tema" title="Trocar a cor de fundo"><span class="i">🎨</span><span class="rot">Fundo</span></button>
+    <button class="btn" id="avisos"><span class="i">🔔</span><span class="rot">Avisos</span></button>
+    <button class="btn" id="nuvem" style="display:none"><span class="i">☁</span><span class="rot">Entrar</span></button>
   </div>
 </header>
 
@@ -487,9 +503,11 @@ function desenhar() {
 
   const titulo = dataAtual.toLocaleDateString("pt-BR",
     { weekday: "long", day: "numeric", month: "long", year: "numeric" });
-  document.getElementById("titulo").textContent = titulo[0].toUpperCase() + titulo.slice(1);
+  document.querySelector("#titulo .longo").textContent = titulo[0].toUpperCase() + titulo.slice(1);
+  const curto = dataAtual.toLocaleDateString("pt-BR", { weekday: "short", day: "numeric", month: "short" }).replace(/\./g, "");
+  document.querySelector("#titulo .curto").textContent = curto[0].toUpperCase() + curto.slice(1);
   document.getElementById("seletorData").value = chave;
-  document.getElementById("tema").value = dados.config.tema;
+  document.getElementById("tema").title = `Fundo ${dados.config.tema} (clique para trocar)`;
   document.documentElement.dataset.theme = dados.config.tema;
 
   const lista = document.getElementById("lista");
@@ -729,8 +747,11 @@ document.getElementById("seletorData").onchange = e => {
   const [a, m, d] = e.target.value.split("-").map(Number);
   irPara(new Date(a, m - 1, d));
 };
-document.getElementById("tema").onchange = e => {
-  dados.config.tema = e.target.value; salvar(); desenhar();
+// Botão de tema: alterna branco → pastel → escuro
+const TEMAS = ["branco", "pastel", "escuro"];
+document.getElementById("tema").onclick = () => {
+  dados.config.tema = TEMAS[(TEMAS.indexOf(dados.config.tema) + 1) % TEMAS.length];
+  salvar(); desenhar();
 };
 document.getElementById("notas").oninput = e => { dia().notas = e.target.value; salvar(); };
 document.getElementById("notas").onblur = () => desenharCalendario();
@@ -955,9 +976,14 @@ const btnAvisos = document.getElementById("avisos");
 const avisados = new Set(); // evita avisar a mesma tarefa duas vezes
 
 function estadoAvisos() {
-  if (!("Notification" in window)) { btnAvisos.textContent = "Avisos indisponíveis"; btnAvisos.disabled = true; return; }
-  btnAvisos.textContent = Notification.permission === "granted" ? "🔔 Avisos ligados"
-    : Notification.permission === "denied" ? "🔕 Avisos bloqueados" : "🔔 Ativar avisos";
+  const [icone, rotulo, dica] = !("Notification" in window) ? ["🔕", "Sem avisos", "Este navegador não mostra avisos"]
+    : Notification.permission === "granted" ? ["🔔", "Avisos", "Avisos ligados"]
+    : Notification.permission === "denied" ? ["🔕", "Avisos", "Avisos bloqueados nas configurações do navegador"]
+    : ["🔔", "Ativar avisos", "Clique para ativar os avisos"];
+  btnAvisos.querySelector(".i").textContent = icone;
+  btnAvisos.querySelector(".rot").textContent = rotulo;
+  btnAvisos.title = dica;
+  btnAvisos.style.opacity = ("Notification" in window && Notification.permission === "granted") ? "1" : ".75";
 }
 btnAvisos.onclick = async () => {
   if (!("Notification" in window)) return;
@@ -1018,7 +1044,17 @@ const FIREBASE_CONFIG = {
 const VERSAO = "10.12.2";
 
 const btn = document.getElementById("nuvem");
-if (FIREBASE_CONFIG) iniciar().catch(e => { console.error(e); btn.style.display = ""; btn.textContent = "☁ Erro na nuvem"; });
+const status = (texto, dica = "", tipo = "") => {
+  btn.querySelector(".rot").textContent = texto;
+  btn.title = dica || texto;
+  btn.classList.toggle("ligado", tipo === "ligado");
+  btn.classList.toggle("alerta", tipo === "alerta");
+};
+if (FIREBASE_CONFIG) {
+  btn.style.display = ""; // aparece já, enquanto o Firebase carrega
+  status("…", "Conectando à nuvem…");
+  iniciar().catch(e => { console.error(e); status("Erro na nuvem", String(e), "alerta"); });
+}
 
 async function iniciar() {
   const url = m => `https://www.gstatic.com/firebasejs/${VERSAO}/firebase-${m}.js`;
@@ -1028,17 +1064,17 @@ async function iniciar() {
 
   const app = initializeApp(FIREBASE_CONFIG);
   const auth = getAuth(app);
-  const db = initializeFirestore(app, { localCache: persistentLocalCache() }); // funciona offline e envia depois
+  let db;
+  try { db = initializeFirestore(app, { localCache: persistentLocalCache() }); } // funciona offline e envia depois
+  catch { db = initializeFirestore(app, {}); }
 
   let usuario = null;
   let pararDeOuvir = [];
   let enviados = {};  // último conteúdo enviado/recebido de cada documento, para só enviar o que mudou
   let espera;
 
-  btn.style.display = "";
-  const status = (texto, dica = "") => { btn.textContent = texto; btn.title = dica; };
-  const mostrarConectado = () => status("☁ " + (usuario.displayName?.split(" ")[0] || "Conectado"),
-    `Sincronizado como ${usuario.email}. Clique para sair.`);
+  const mostrarConectado = () => status(usuario.displayName?.split(" ")[0] || "Conectado",
+    `Sincronizado como ${usuario.email}. Clique para sair.`, "ligado");
 
   // ----- Entrar e sair -----
   btn.onclick = async () => {
@@ -1048,13 +1084,13 @@ async function iniciar() {
       catch (e) {
         // Alguns celulares bloqueiam a janela de login; nesse caso troca de página para entrar
         if (e.code === "auth/popup-blocked" || e.code === "auth/operation-not-supported-in-this-environment") signInWithRedirect(auth, provedor);
-        else if (e.code !== "auth/popup-closed-by-user" && e.code !== "auth/cancelled-popup-request") { console.error(e); status("☁ Erro ao entrar", e.code); }
+        else if (e.code !== "auth/popup-closed-by-user" && e.code !== "auth/cancelled-popup-request") { console.error(e); status("Erro ao entrar", e.code, "alerta"); }
       }
       return;
     }
     // Sair pede confirmação (segundo clique)
     if (!btn.classList.contains("confirmar")) {
-      btn.classList.add("confirmar"); btn.textContent = "Sair da conta?";
+      btn.classList.add("confirmar"); status("Sair?", "Clique de novo para sair da conta", "alerta");
       setTimeout(() => { btn.classList.remove("confirmar"); if (usuario) mostrarConectado(); }, 3000);
       return;
     }
@@ -1074,9 +1110,9 @@ async function iniciar() {
   onAuthStateChanged(auth, async u => {
     pararDeOuvir.forEach(parar => parar());
     pararDeOuvir = []; enviados = {}; usuario = u;
-    if (!u) { status("☁ Entrar com Google", "Entre para salvar na nuvem e sincronizar entre aparelhos"); return; }
+    if (!u) { status("Entrar", "Entrar com Google para salvar na nuvem e sincronizar entre aparelhos"); return; }
 
-    status("☁ Sincronizando…");
+    status("Sincronizando…");
     const base = ["usuarios", u.uid];
 
     // 1ª carga: o que está na nuvem vale; o que só existe neste aparelho é enviado
@@ -1138,9 +1174,9 @@ async function iniciar() {
       envios.push(setDoc(doc(db, ...base, "meta", "lista"), { itens: dados.lista }));
     }
     if (!envios.length) return;
-    status(navigator.onLine ? "☁ Salvando…" : "☁ Sem internet, salva depois");
+    status(navigator.onLine ? "Salvando…" : "Offline", navigator.onLine ? "Salvando…" : "Sem internet: salva quando voltar");
     try { await Promise.all(envios); mostrarConectado(); }
-    catch (e) { console.error(e); status("☁ Erro ao salvar", e.code || ""); }
+    catch (e) { console.error(e); status("Erro ao salvar", e.code || "", "alerta"); }
   }
 }
 </script>
