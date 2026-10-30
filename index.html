@@ -7,22 +7,22 @@
 <style>
   /* ===== Temas: branco, pastel e escuro ===== */
   :root, :root[data-theme="branco"] {
-    --bg: #f4f5f7; --paper: #ffffff; --ink: #24262b; --muted: #80848c;
-    --line: #e1e5ec; --accent: #2f6fd6;
+    --bg: #e6e9ee; --paper: #ffffff; --ink: #24262b; --muted: #737880;
+    --line: #d3d9e2; --accent: #2f6fd6; --sombra: 0 1px 2px rgb(30 40 60 / .08), 0 2px 8px rgb(30 40 60 / .06);
     --late: #c0392b; --late-bg: #fde8e6; --done: #4f8a4a; --now: #e0a400;
     --chip-fixa: #dbe7fb; --chip-movel: #e5f3dd; --chip-ink: #24262b;
     color-scheme: light;
   }
   :root[data-theme="pastel"] {
-    --bg: #d9d1e0; --paper: #ebe5ec; --ink: #322d3b; --muted: #776e82;
-    --line: #cdc2d6; --accent: #7458b0;
+    --bg: #cbc0d6; --paper: #f0ebf1; --ink: #322d3b; --muted: #6e6579;
+    --line: #bfb1cb; --accent: #7458b0; --sombra: 0 1px 2px rgb(60 40 80 / .12), 0 2px 8px rgb(60 40 80 / .08);
     --late: #b23a4e; --late-bg: #efd0d6; --done: #4f7f58; --now: #c08a00;
     --chip-fixa: #cbbde6; --chip-movel: #c2dfcd; --chip-ink: #322d3b;
     color-scheme: light;
   }
   :root[data-theme="escuro"] {
-    --bg: #18191c; --paper: #232428; --ink: #e8e6e1; --muted: #9a968d;
-    --line: #343e4c; --accent: #7aa7e6;
+    --bg: #111215; --paper: #26282e; --ink: #e8e6e1; --muted: #a29e95;
+    --line: #3d4757; --accent: #7aa7e6; --sombra: 0 1px 2px rgb(0 0 0 / .5), 0 2px 10px rgb(0 0 0 / .35);
     --late: #ff7563; --late-bg: #3a2220; --done: #8fbf7a; --now: #e8b931;
     --chip-fixa: #6f74c6; --chip-movel: #3f9a8c; --chip-ink: #ffffff;
     color-scheme: dark;
@@ -37,6 +37,7 @@
   .btn {
     background: var(--paper); border: 1px solid var(--line); border-radius: 8px;
     padding: 6px 12px; cursor: pointer;
+    box-shadow: var(--sombra);
   }
   .btn:hover { border-color: var(--accent); }
   .btn.principal { background: var(--accent); border-color: var(--accent); color: var(--paper); font-weight: 600; }
@@ -57,7 +58,6 @@
   .seletor input { position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%; }
   .seletor input::-webkit-calendar-picker-indicator { position: absolute; inset: 0; width: 100%; height: 100%; cursor: pointer; }
   .tools { display: flex; align-items: center; gap: 6px; margin-left: auto; flex-shrink: 0; }
-  #resumo { color: var(--muted); font-size: .85rem; margin-right: 6px; white-space: nowrap; }
   .bolinha { width: 14px; height: 14px; border-radius: 50%; border: 1px solid var(--line);
     background: linear-gradient(135deg, var(--paper) 50%, var(--accent) 50%); }
   #nuvem .rot { max-width: 9em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -65,9 +65,9 @@
   #nuvem.ligado .i { color: var(--done); }
   #nuvem.alerta { border-color: var(--late); color: var(--late); }
 
-  @media (max-width: 1400px) { #tema .rot, #avisos .rot { display: none; } }
+  #avisos .rot { display: none; }
+  @media (max-width: 700px) { #tema .rot { display: none; } }
   @media (max-width: 1100px) {
-    #resumo { display: none; }
     #titulo .longo { display: none; } #titulo .curto { display: inline; }
   }
   @media (max-width: 700px) {
@@ -86,7 +86,7 @@
   .abas button.ativa { background: var(--paper); color: var(--ink); font-weight: 600; }
 
   main { padding: 0 16px 24px; }
-  .painel { display: none; background: var(--paper); border: 1px solid var(--line); border-radius: 0 10px 10px 10px; padding: 12px 0; }
+  .painel { display: none; background: var(--paper); border: 1px solid var(--line); border-radius: 0 10px 10px 10px; padding: 12px 0; box-shadow: var(--sombra); }
   .painel.ativo { display: block; }
   .painel h2 { font-size: .8rem; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin: 8px 16px; }
 
@@ -165,10 +165,10 @@
   #erroForm { color: var(--late); font-size: .85rem; min-height: 1.2em; margin: 0; }
 
   /* ===== Alternar Agenda / Lista ===== */
-  .modos { display: flex; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+  .modos { display: flex; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; box-shadow: var(--sombra); flex-shrink: 0; }
   .modos button { border: none; border-radius: 0 !important; background: var(--paper); cursor: pointer; color: var(--muted); }
   .modos button.ativo { background: var(--accent); color: var(--paper); font-weight: 600; }
-  body.modo-lista .nav, body.modo-lista #resumo, body.modo-lista main { display: none; }
+  body.modo-lista .nav, body.modo-lista main { display: none; }
   body:not(.modo-lista) #paginaLista { display: none; }
 
   /* ===== Página Lista (sem data) ===== */
@@ -319,8 +319,7 @@
     <label class="btn ico seletor" title="Escolher data">📅<input type="date" id="seletorData" aria-label="Escolher data"></label>
   </div>
   <div class="tools">
-    <span id="resumo"></span>
-    <button class="btn" id="tema" title="Trocar a cor de fundo"><span class="i">🎨</span><span class="rot">Fundo</span></button>
+    <button class="btn" id="tema" title="Trocar a cor de fundo"><span class="i">🎨</span><span class="rot">Escuro</span></button>
     <button class="btn" id="avisos"><span class="i">🔔</span><span class="rot">Avisos</span></button>
     <button class="btn" id="nuvem" style="display:none"><span class="i">☁</span><span class="rot">Entrar</span></button>
   </div>
@@ -427,7 +426,7 @@
 <script>
 // ================= Configuração =================
 const HORA_LEMBRETE_MOVEIS = 21; // aviso à noite das tarefas móveis que faltam
-const ALTURA_CHIP = 20;          // altura aproximada de cada tarefa dentro do dia no calendário
+const ALTURA_CHIP = 18;          // altura aproximada de cada tarefa dentro do dia no calendário
 
 // ================= Dados (salvos no navegador) =================
 // Formato: { config: { tema }, dias: { "2026-10-30": { tarefas: [...], notas: "" } } }
@@ -496,18 +495,22 @@ document.getElementById("coresPostit").innerHTML = CORES_POSTIT.map(c =>
   `<label class="${c.valor ? "" : "sem-cor"}"><input type="radio" name="cor" value="${c.valor}">` +
   `<span style="${c.valor ? "background:" + c.valor : ""}">${c.nome}</span></label>`).join("");
 
+const DIAS_SEMANA = ["Domingo", "Segunda", "Terça", "Quarta", "Quinta", "Sexta", "Sábado"];
+
 // ================= Lista de tarefas =================
 function desenhar() {
   const d = dia();
   const chave = chaveData(dataAtual);
 
-  const titulo = dataAtual.toLocaleDateString("pt-BR",
-    { weekday: "long", day: "numeric", month: "long", year: "numeric" });
-  document.querySelector("#titulo .longo").textContent = titulo[0].toUpperCase() + titulo.slice(1);
-  const curto = dataAtual.toLocaleDateString("pt-BR", { weekday: "short", day: "numeric", month: "short" }).replace(/\./g, "");
-  document.querySelector("#titulo .curto").textContent = curto[0].toUpperCase() + curto.slice(1);
+  // Ex.: "Sexta, 30 - outubro - 2026" (curto: "Sex, 30 - out")
+  const semana = DIAS_SEMANA[dataAtual.getDay()];
+  const mes = dataAtual.toLocaleDateString("pt-BR", { month: "long" });
+  document.querySelector("#titulo .longo").textContent = `${semana}, ${dataAtual.getDate()} - ${mes} - ${dataAtual.getFullYear()}`;
+  document.querySelector("#titulo .curto").textContent = `${semana.slice(0, 3)}, ${dataAtual.getDate()} - ${mes.slice(0, 3)}`;
   document.getElementById("seletorData").value = chave;
-  document.getElementById("tema").title = `Fundo ${dados.config.tema} (clique para trocar)`;
+  const btnTema = document.getElementById("tema");
+  btnTema.title = `Fundo ${dados.config.tema} (clique para trocar)`;
+  btnTema.querySelector(".rot").textContent = dados.config.tema[0].toUpperCase() + dados.config.tema.slice(1);
   document.documentElement.dataset.theme = dados.config.tema;
 
   const lista = document.getElementById("lista");
@@ -581,9 +584,6 @@ function desenhar() {
   const notas = document.getElementById("notas");
   if (document.activeElement !== notas) notas.value = d.notas || "";
 
-  const feitas = tarefas.filter(t => t.feita).length;
-  document.getElementById("resumo").textContent =
-    tarefas.length ? `${feitas} de ${tarefas.length} tarefas feitas` : "Nenhuma tarefa";
 
   desenharCalendario();
 }
@@ -694,14 +694,14 @@ function desenharCalendario() {
 
   // Quantas tarefas cabem em cada dia, conforme a altura que sobrou na tela
   const alturaDia = cal.querySelector(".cel")?.clientHeight || 0;
-  const cabem = window.innerWidth <= 700 ? 8 : Math.max(1, Math.floor((alturaDia - 40) / ALTURA_CHIP));
+  const cabem = window.innerWidth <= 700 ? 8 : Math.max(1, Math.floor((alturaDia - 34) / ALTURA_CHIP));
 
   for (const { cel, info, chave } of dias) {
     if (info) {
       const itens = ordenar(info.tarefas);
       const temNota = !!info.notas?.trim();
       let mostrar = cabem - (temNota ? 1 : 0);
-      if (itens.length > mostrar) mostrar = Math.max(0, mostrar - 1); // espaço para o "+N mais"
+      if (itens.length > mostrar) mostrar = Math.max(1, mostrar - 1); // espaço para o "+N mais" (mostra ao menos 1)
       for (const t of itens.slice(0, mostrar)) {
         const chip = document.createElement("span");
         chip.className = "chip" + (t.tipo === "movel" ? " movel" : "") + (t.feita ? " feita" : "") + (atrasada(t, chave) ? " atrasada" : "");
