@@ -151,7 +151,7 @@
   #popup { width: min(520px, calc(100vw - 32px)); max-height: calc(100vh - 32px); overflow: auto; }
   .linha-rec { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
   .linha-rec label { font-size: .8rem; }
-  #form:not([data-cat=recorrente]) .so-recorrente, #form[data-cat=reuniao] .sem-reuniao { display: none; }
+  #form:not([data-cat=recorrente]) .so-recorrente { display: none; }
   .opcoes-tipo label {
     border: 1px solid var(--line); border-radius: 10px; padding: 10px; cursor: pointer; color: var(--ink); margin: 0;
   }
@@ -249,8 +249,6 @@
   #notaTitulo { margin: 0; font-size: 1.3rem; overflow-wrap: anywhere; }
   #notaVista { flex: 1; display: flex; flex-direction: column; padding: 0 16px 4px; font-size: 1.05rem; line-height: 1.6; overflow-wrap: anywhere; cursor: text; }
   #notaVista .vazio { cursor: default; }
-  #notaVista h4 { margin: 12px 0 6px; font-size: .8rem; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
-  #notaVista h4:first-child { margin-top: 0; }
   #notaVista .editor { flex: 1 1 0; min-height: 140px; }
   .tarefa .cat { margin-right: 4px; }
   #fTituloItem { width: 100%; padding: 8px 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--bg); font-size: 1.1rem; font-weight: 600; }
@@ -487,7 +485,7 @@
       <label>Cor (prioridade)</label>
       <div class="cores-postit" id="coresPostit"></div>
     </div>
-    <div class="campo sem-reuniao">
+    <div class="campo">
       <label>Anotações</label>
       <div id="fNotaTarefa" class="editor pequeno" contenteditable="true" role="textbox" aria-multiline="true" data-placeholder="Opcional"></div>
     </div>
@@ -508,7 +506,7 @@ const ALTURA_CHIP = 18;          // altura aproximada de cada tarefa dentro do d
 // ================= Dados (salvos no navegador) =================
 // Formato: { config: { tema }, dias: { "2026-10-30": { tarefas: [...], anotacoes: [...] } } }
 // Tarefa: { id, hora: "08:00" ou "", texto, tipo: "fixa" | "movel", feita }
-//   categoria: "tarefa" | "reuniao"; notaHtml (tarefa) ou antesHtml/depoisHtml (reunião)
+//   categoria: "tarefa" | "reuniao"; notaHtml = anotações
 // Anotação do dia: { id, titulo, texto, html }
 // Recorrentes (ficam fora dos dias): { id, texto, hora, tipo, cor, inicio, fim, repete, notaHtml, feitas: { "2026-10-30": true }, excluidos: { "2026-11-02": true } }
 const CHAVE = "agenda-pessoal:v1";
@@ -770,15 +768,11 @@ function desenharNota() {
   const original = n.rec || n;
   h3.textContent = (ICONE_CATEGORIA[n.categoria] ? ICONE_CATEGORIA[n.categoria] + " " : "") + data + (n.hora ? n.hora + " · " : "") + n.texto;
   const area = (rotulo, campo, dica) => {
-    if (rotulo) { const h4 = document.createElement("h4"); h4.textContent = rotulo; vista.append(h4); }
     const ed = criarEditor(original[campo] || "", dica);
     ed.addEventListener("input", () => { original[campo] = limparHtml(ed.innerHTML); salvar(); });
     vista.append(barraFerramentas(ed), ed);
   };
-  if (n.categoria === "reuniao") {
-    area("Antes da reunião", "antesHtml", "Pauta, o que levar, perguntas...");
-    area("Depois da reunião", "depoisHtml", "O que foi decidido, próximos passos...");
-  } else area("", "notaHtml", "Escreva as anotações desta tarefa...");
+  area("", "notaHtml", "Escreva as anotações desta tarefa...");
 }
 // Editor com negrito e cores; colar entra como texto simples
 function criarEditor(html, dica) {
@@ -854,7 +848,7 @@ function salvarTarefa() {
   if (cat === "recorrente" && fim && fim < inicio) { erroForm.textContent = "O fim tem que ser depois do início."; return; }
 
   const campos = { texto, hora, tipo, cor };
-  if (cat !== "reuniao") campos.notaHtml = limparHtml(fNotaTarefa.innerHTML);
+  campos.notaHtml = limparHtml(fNotaTarefa.innerHTML);
   if (cat === "recorrente") Object.assign(campos, { inicio, fim, repete });
   else campos.categoria = cat;
 
