@@ -1,0 +1,1001 @@
+<!doctype html>
+<html lang="pt-BR" data-theme="escuro">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Agenda Pessoal</title>
+<style>
+  /* ===== Temas: branco, pastel e escuro ===== */
+  :root, :root[data-theme="branco"] {
+    --bg: #f4f5f7; --paper: #ffffff; --ink: #24262b; --muted: #80848c;
+    --line: #e1e5ec; --accent: #2f6fd6;
+    --late: #c0392b; --late-bg: #fde8e6; --done: #4f8a4a; --now: #e0a400;
+    --chip-fixa: #dbe7fb; --chip-movel: #e5f3dd; --chip-ink: #24262b;
+    color-scheme: light;
+  }
+  :root[data-theme="pastel"] {
+    --bg: #d9d1e0; --paper: #ebe5ec; --ink: #322d3b; --muted: #776e82;
+    --line: #cdc2d6; --accent: #7458b0;
+    --late: #b23a4e; --late-bg: #efd0d6; --done: #4f7f58; --now: #c08a00;
+    --chip-fixa: #cbbde6; --chip-movel: #c2dfcd; --chip-ink: #322d3b;
+    color-scheme: light;
+  }
+  :root[data-theme="escuro"] {
+    --bg: #18191c; --paper: #232428; --ink: #e8e6e1; --muted: #9a968d;
+    --line: #343e4c; --accent: #7aa7e6;
+    --late: #ff7563; --late-bg: #3a2220; --done: #8fbf7a; --now: #e8b931;
+    --chip-fixa: #6f74c6; --chip-movel: #3f9a8c; --chip-ink: #ffffff;
+    color-scheme: dark;
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--ink);
+    font: 1rem/1.4 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+  button, input, select, textarea { font: inherit; color: inherit; }
+  .btn {
+    background: var(--paper); border: 1px solid var(--line); border-radius: 8px;
+    padding: 6px 12px; cursor: pointer;
+  }
+  .btn:hover { border-color: var(--accent); }
+  .btn.principal { background: var(--accent); border-color: var(--accent); color: var(--paper); font-weight: 600; }
+
+  /* ===== Cabeçalho com a data ===== */
+  header {
+    position: sticky; top: 0; z-index: 5; background: var(--bg);
+    display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px;
+    padding: 12px 16px; border-bottom: 1px solid var(--line);
+  }
+  .nav { display: flex; align-items: center; gap: 6px; }
+  #titulo { font-size: 1.25rem; font-weight: 600; margin: 0 8px; }
+  #seletorData, #tema { background: var(--paper); border: 1px solid var(--line); border-radius: 8px; padding: 5px 8px; }
+  .tools { display: flex; align-items: center; gap: 8px; margin-left: auto; flex-wrap: wrap; }
+  #resumo { color: var(--muted); font-size: .9rem; }
+  @media (max-width: 700px) {
+    .nav { flex-wrap: wrap; width: 100%; }
+    #titulo { order: -1; width: 100%; margin: 0 0 4px; font-size: 1.1rem; }
+    #seletorData { margin-left: auto; }
+    .tools { margin-left: 0; width: 100%; }
+    #avisos { margin-left: auto; }
+  }
+
+  /* ===== Abas ===== */
+  .abas { display: flex; gap: 4px; padding-top: 12px; }
+  .abas button {
+    border: 1px solid var(--line); border-bottom: none; background: transparent;
+    padding: 8px 16px; border-radius: 10px 10px 0 0; cursor: pointer; color: var(--muted);
+  }
+  .abas button.ativa { background: var(--paper); color: var(--ink); font-weight: 600; }
+
+  main { padding: 0 16px 24px; }
+  .painel { display: none; background: var(--paper); border: 1px solid var(--line); border-radius: 0 10px 10px 10px; padding: 12px 0; }
+  .painel.ativo { display: block; }
+  .painel h2 { font-size: .8rem; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin: 8px 16px; }
+
+  /* ===== Lista de tarefas ===== */
+  .topo-tarefas { display: flex; align-items: center; justify-content: space-between; padding: 0 16px 8px; }
+  .topo-tarefas h2 { margin: 0; }
+  .lista { list-style: none; margin: 0; padding: 0 8px; }
+  .tarefa {
+    display: grid; grid-template-columns: 32px 64px 1fr auto auto; align-items: center; gap: 4px;
+    padding: 10px 8px; border-radius: 8px; cursor: pointer;
+  }
+  .tarefa + .tarefa { margin-top: 2px; }
+  .tarefa:hover { background: color-mix(in srgb, var(--accent) 8%, transparent); }
+  .tarefa input[type=checkbox] { width: 20px; height: 20px; margin: 0 auto; accent-color: var(--done); cursor: pointer; }
+  .tarefa .hora { font-weight: 600; font-variant-numeric: tabular-nums; }
+  .tarefa .hora.vazia { color: var(--muted); font-weight: 400; font-size: .85rem; }
+  .tarefa .texto { overflow-wrap: anywhere; }
+  .tarefa .excluir {
+    border: 1px solid var(--line); background: none; border-radius: 6px; cursor: pointer;
+    padding: 2px 8px; color: var(--muted); margin-left: 6px;
+  }
+  .tarefa .excluir:hover { border-color: var(--late); color: var(--late); }
+  .tarefa .excluir.confirmar { background: var(--late); border-color: var(--late); color: #fff; }
+  .tarefa .tipo {
+    font-size: .75rem; padding: 2px 8px; border-radius: 99px;
+    background: var(--chip-fixa); color: var(--chip-ink);
+  }
+  .tarefa .tipo.movel { background: var(--chip-movel); }
+  .tarefa.feita .texto, .tarefa.feita .hora { text-decoration: line-through; color: var(--muted); }
+  .tarefa.feita .tipo { opacity: .5; }
+  .tarefa.atrasada { background: var(--late-bg); }
+  .tarefa.atrasada .texto, .tarefa.atrasada .hora { color: var(--late); font-weight: 600; }
+  /* Linha do "agora" entre as tarefas */
+  .agora { display: flex; align-items: center; gap: 8px; color: var(--now); font-size: .8rem; font-weight: 600; padding: 2px 8px; }
+  .agora::after { content: ""; flex: 1; height: 2px; background: var(--now); border-radius: 2px; }
+  .vazio { color: var(--muted); text-align: center; padding: 32px 16px; }
+
+  /* ===== Pop-up de tarefa ===== */
+  dialog {
+    border: 1px solid var(--line); border-radius: 14px; background: var(--paper); color: var(--ink);
+    padding: 20px; width: min(420px, calc(100vw - 32px));
+  }
+  dialog::backdrop { background: rgb(0 0 0 / .45); }
+  dialog h3 { margin: 0 0 16px; }
+  dialog label { display: block; font-size: .85rem; color: var(--muted); margin-bottom: 4px; }
+  dialog .campo { margin-bottom: 14px; }
+  dialog input[type=time], dialog input[type=text] {
+    width: 100%; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg);
+  }
+  .opcoes-tipo { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .opcoes-tipo label {
+    border: 1px solid var(--line); border-radius: 10px; padding: 10px; cursor: pointer; color: var(--ink); margin: 0;
+  }
+  .opcoes-tipo label:has(input:checked) { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, transparent); }
+  .opcoes-tipo input { accent-color: var(--accent); margin-right: 6px; }
+  .opcoes-tipo small { display: block; color: var(--muted); margin-top: 4px; font-size: .78rem; }
+  .acoes { display: flex; gap: 8px; margin-top: 18px; }
+  .acoes .apagar { margin-right: auto; color: var(--late); }
+  /* Cores de post-it para prioridade */
+  .cores-postit { display: flex; gap: 6px; flex-wrap: wrap; }
+  .cores-postit label { margin: 0; cursor: pointer; }
+  .cores-postit input { position: absolute; opacity: 0; pointer-events: none; }
+  .cores-postit span {
+    display: inline-flex; align-items: center; justify-content: center; min-width: 50px; height: 34px; padding: 0 8px;
+    border-radius: 6px; border: 2px solid transparent; font-size: .8rem; color: #2b2a27; box-shadow: 0 1px 2px rgb(0 0 0 / .15);
+  }
+  .cores-postit .sem-cor span { background: var(--bg); color: var(--muted); box-shadow: none; border: 1px dashed var(--line); }
+  .cores-postit input:checked + span { border-color: var(--accent); outline: 2px solid var(--accent); outline-offset: 1px; }
+  .cores-postit input:focus-visible + span { outline: 2px solid var(--accent); }
+  .tarefa .texto.colorida { color: #2b2a27; padding: 3px 10px; border-radius: 4px; justify-self: start; box-shadow: 0 1px 2px rgb(0 0 0 / .15); }
+  .tarefa.atrasada .texto.colorida { color: #b3261e; }
+  .tarefa.feita .texto.colorida { color: #6b675f; opacity: .7; }
+  .chip.colorida { color: #2b2a27; }
+  #erroForm { color: var(--late); font-size: .85rem; min-height: 1.2em; margin: 0; }
+
+  /* ===== Alternar Agenda / Lista ===== */
+  .modos { display: flex; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+  .modos button { border: none; background: var(--paper); padding: 6px 14px; cursor: pointer; color: var(--muted); }
+  .modos button.ativo { background: var(--accent); color: var(--paper); font-weight: 600; }
+  body.modo-lista .nav > :not(.modos), body.modo-lista #resumo, body.modo-lista main { display: none; }
+  body:not(.modo-lista) #paginaLista { display: none; }
+
+  /* ===== Página Lista (sem data) ===== */
+  #paginaLista { max-width: 1100px; margin: 16px auto; padding: 0 16px 24px; }
+  #paginaLista .painel { display: block; border-radius: 10px; }
+  .itens { list-style: none; margin: 0; padding: 0 8px; counter-reset: item; }
+  .item {
+    display: grid; grid-template-columns: 24px 2.2rem 28px 1fr auto; align-items: center; gap: 6px;
+    padding: 10px 8px; border-radius: 8px; background: var(--paper);
+  }
+  .item + .item { border-top: 1px solid var(--line); }
+  .item:hover { background: color-mix(in srgb, var(--accent) 8%, var(--paper)); }
+  .item .alca { cursor: grab; color: var(--muted); text-align: center; user-select: none; touch-action: none; }
+  .item .pos { color: var(--muted); font-weight: 600; font-variant-numeric: tabular-nums; text-align: right; }
+  .item input[type=checkbox] { width: 20px; height: 20px; margin: 0 auto; accent-color: var(--done); cursor: pointer; }
+  .item .texto { cursor: pointer; overflow-wrap: anywhere; }
+  .item .texto p, .item .texto div { margin: 0; }
+  .item .setas button.excluir:hover { border-color: var(--late); color: var(--late); }
+  .item .setas button.confirmar { background: var(--late); border-color: var(--late); color: #fff; }
+  .item.feito .texto { text-decoration: line-through; color: var(--muted); }
+  .item .setas { display: flex; gap: 2px; }
+  .item .setas button { border: 1px solid var(--line); background: none; border-radius: 6px; cursor: pointer; padding: 2px 8px; color: var(--muted); }
+  .item .setas button:hover { border-color: var(--accent); color: var(--ink); }
+  .item .setas button:disabled { opacity: .3; cursor: default; }
+  .item.arrastando { opacity: .4; }
+  .item.alvo-antes { box-shadow: inset 0 3px 0 var(--accent); }
+  .item.alvo-depois { box-shadow: inset 0 -3px 0 var(--accent); }
+  /* Pop-up grande da Lista (futura área de trabalho) */
+  #popupItem { width: min(1400px, calc(100vw - 32px)); height: min(88vh, 1100px); max-width: none; max-height: none; padding: 0; }
+  #popupItem[open] { display: flex; }
+  #formItem { display: flex; flex-direction: column; flex: 1; padding: 20px; gap: 12px; min-height: 0; }
+  #formItem h3 { margin: 0; }
+  .ferramentas { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 6px; border: 1px solid var(--line); border-radius: 10px; background: var(--bg); }
+  .ferramentas .sep { width: 1px; height: 24px; background: var(--line); margin: 0 4px; }
+  .ferramentas button { border: 1px solid transparent; background: none; border-radius: 6px; cursor: pointer; min-width: 32px; height: 32px; }
+  .ferramentas button:hover { border-color: var(--accent); }
+  .ferramentas .negrito { font-weight: 800; font-size: 1.05rem; }
+  .ferramentas .cor { min-width: 26px; width: 26px; height: 26px; border-radius: 50%; border: 2px solid var(--paper); box-shadow: 0 0 0 1px var(--line); }
+  .ferramentas .cor.padrao { background: var(--ink); }
+  .ferramentas .posicao { margin-left: auto; display: flex; align-items: center; gap: 6px; font-size: .85rem; color: var(--muted); }
+  .ferramentas .posicao input { width: 70px; padding: 4px 8px; border: 1px solid var(--line); border-radius: 6px; background: var(--paper); }
+  #fItem {
+    flex: 1; min-height: 0; overflow: auto; padding: 14px 16px; border: 1px solid var(--line); border-radius: 10px;
+    background: var(--bg); outline: none; font-size: 1.05rem; line-height: 1.6; overflow-wrap: anywhere;
+  }
+  #fItem:focus { border-color: var(--accent); }
+  /* Texto marcado com "cor padrão" aparece na cor do tema enquanto se edita */
+  #fItem [style*="rgb(1, 2, 3)"], #fItem font[color="#010203"] { color: var(--ink) !important; }
+  #fItem:empty::before { content: attr(data-placeholder); color: var(--muted); }
+  #formItem .acoes { margin-top: 0; }
+
+  /* ===== Anotações ===== */
+  #notas {
+    --lh: 34px;
+    width: 100%; min-height: 60vh; border: none; outline: none; resize: vertical; background:
+      repeating-linear-gradient(transparent 0 calc(var(--lh) - 1px), var(--line) calc(var(--lh) - 1px) var(--lh));
+    line-height: var(--lh); padding: 0 16px; background-attachment: local;
+  }
+
+  /* ===== Calendário do mês ===== */
+  .cal-topo { display: flex; align-items: center; gap: 6px; padding: 4px 16px 12px; }
+  .cal-topo strong { font-size: 1.2rem; margin-right: auto; }
+  .cal-topo strong::first-letter { text-transform: uppercase; }
+  .cal { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); grid-template-rows: auto repeat(6, minmax(0, 1fr)); padding: 0 8px; flex: 1; }
+  /* O calendário estica até o fim da tela (altura definida em ajustarAltura) */
+  #calendario.ativo { display: flex; flex-direction: column; }
+  #anotacoes.ativo { display: flex; flex-direction: column; }
+  #notas { flex: 1; }
+  @media (min-width: 2300px) { #anotacoes { display: flex; flex-direction: column; } }
+  .cal .sem { text-align: center; font-size: .8rem; font-weight: 600; color: var(--muted); padding-bottom: 6px; }
+  .cal .cel {
+    min-height: 92px; border: none; border-top: 1px solid var(--line); border-left: 1px solid var(--line);
+    padding: 4px 3px; cursor: pointer; overflow: hidden; display: flex; flex-direction: column; gap: 2px;
+    background: none; text-align: left;
+  }
+  .cal .cel:nth-child(7n+1) { border-left: none; }
+  .cal .cel:hover { background: color-mix(in srgb, var(--accent) 8%, transparent); }
+  .cal .cel.fora .num { opacity: .4; }
+  .cal .num { align-self: center; font-size: .9rem; width: 1.8rem; height: 1.8rem; line-height: 1.8rem; text-align: center; border-radius: 50%; }
+  .cal .cel.hoje .num { background: var(--accent); color: var(--paper); font-weight: 700; }
+  .cal .cel.selecionado { outline: 2px solid var(--accent); outline-offset: -2px; border-radius: 6px; }
+  .chip {
+    font-size: .75rem; line-height: 1.5; padding: 0 5px; border-radius: 4px;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    background: var(--chip-fixa); color: var(--chip-ink);
+  }
+  .chip.movel { background: var(--chip-movel); }
+  .chip.feita { opacity: .45; text-decoration: line-through; }
+  .chip.atrasada { background: var(--late); color: #fff; }
+  .chip.extra, .chip.nota { background: none; color: var(--muted); padding: 0 2px; }
+  /* Em telas estreitas, as tarefas viram pontinhos coloridos */
+  @media (max-width: 700px) {
+    .cal .cel { min-height: 56px; flex-direction: row; flex-wrap: wrap; align-content: flex-start; justify-content: center; }
+    .cal .num { margin: 0 calc(50% - 13px) 2px; }
+    .chip { font-size: 0; width: 7px; height: 7px; padding: 0; border-radius: 50%; background: var(--accent); }
+    .chip.movel { background: var(--done); }
+    .chip.atrasada { background: var(--late); }
+    .chip.extra, .chip.nota { display: none; }
+  }
+
+  /* ===== Tela média: Tarefas/Anotações (abas) | Calendário ===== */
+  @media (min-width: 1000px) {
+    main {
+      display: grid; gap: 0 16px; align-items: start;
+      grid-template-columns: 1fr 1fr; grid-template-areas: "abas ." "esq cal";
+    }
+    .abas { grid-area: abas; }
+    #tarefas, #anotacoes { grid-area: esq; }
+    #calendario { grid-area: cal; display: block; border-radius: 10px; }
+    .abas button[data-aba="calendario"] { display: none; }
+    #calendario { display: flex; flex-direction: column; }
+    .cal .cel { min-height: 0; }
+  }
+  /* ===== Tela grande (4K): Tarefas | Anotações | Calendário, um terço cada ===== */
+  @media (min-width: 2300px) {
+    html { font-size: 18px; }
+    .abas { display: none; }
+    main { grid-template-columns: repeat(3, 1fr); grid-template-areas: "tar not cal"; padding-top: 16px; }
+    #tarefas { grid-area: tar; } #anotacoes { grid-area: not; }
+    .painel, .painel.ativo { display: block; border-radius: 10px; }
+    #notas { min-height: 80vh; --lh: 36px; }
+    .cal .cel { min-height: 0; }
+  }
+  /* 4K sem ampliação do Windows (100%): letras maiores */
+  @media (min-width: 3200px) {
+    html { font-size: 24px; }
+    #notas { --lh: 46px; }
+    .cal .cel { min-height: 0; }
+    .tarefa { grid-template-columns: 44px 90px 1fr auto auto; }
+    .tarefa input[type=checkbox] { width: 26px; height: 26px; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="nav">
+    <div class="modos" role="tablist">
+      <button data-modo="agenda" class="ativo">Agenda</button>
+      <button data-modo="lista">Lista</button>
+    </div>
+    <button class="btn" id="ant" title="Dia anterior (Alt + ←)">‹</button>
+    <button class="btn" id="hoje">Hoje</button>
+    <button class="btn" id="prox" title="Próximo dia (Alt + →)">›</button>
+    <span id="titulo"></span>
+    <input type="date" id="seletorData" aria-label="Escolher data">
+  </div>
+  <div class="tools">
+    <span id="resumo"></span>
+    <select id="tema" title="Cor de fundo">
+      <option value="branco">Fundo branco</option>
+      <option value="pastel">Fundo pastel</option>
+      <option value="escuro">Fundo escuro</option>
+    </select>
+    <button class="btn" id="avisos">🔔 Ativar avisos</button>
+  </div>
+</header>
+
+<main>
+  <nav class="abas">
+    <button data-aba="tarefas" class="ativa">Tarefas</button>
+    <button data-aba="calendario">Calendário</button>
+    <button data-aba="anotacoes">Anotações</button>
+  </nav>
+
+  <section class="painel ativo" id="tarefas">
+    <div class="topo-tarefas">
+      <h2>Tarefas do dia</h2>
+      <button class="btn principal" id="novaTarefa">+ Adicionar tarefa</button>
+    </div>
+    <ul class="lista" id="lista"></ul>
+  </section>
+
+  <section class="painel" id="anotacoes">
+    <h2>Anotações do dia</h2>
+    <textarea id="notas" placeholder="Escreva aqui..."></textarea>
+  </section>
+
+  <section class="painel" id="calendario">
+    <div class="cal-topo">
+      <strong id="calTitulo"></strong>
+      <button class="btn" id="calAnt" title="Mês anterior">‹</button>
+      <button class="btn" id="calProx" title="Próximo mês">›</button>
+    </div>
+    <div class="cal" id="cal"></div>
+  </section>
+</main>
+
+<!-- Página Lista: coisas sem data, em ordem de prioridade -->
+<div id="paginaLista">
+  <section class="painel">
+    <div class="topo-tarefas">
+      <h2>Lista: sem data definida</h2>
+      <button class="btn principal" id="novoItem">+ Adicionar anotação</button>
+    </div>
+    <ul class="itens" id="itens"></ul>
+  </section>
+</div>
+
+<!-- Pop-up para um item da Lista -->
+<dialog id="popupItem">
+  <form id="formItem" onsubmit="return false">
+    <h3 id="popupItemTitulo">Nova anotação</h3>
+    <div class="ferramentas" id="ferramentas">
+      <button type="button" class="negrito" data-cmd="bold" title="Negrito (Ctrl+B)">B</button>
+      <span class="sep"></span>
+      <button type="button" class="cor padrao" data-cor="padrao" title="Cor padrão"></button>
+      <button type="button" class="cor" data-cor="#e53935" style="background:#e53935" title="Vermelho"></button>
+      <button type="button" class="cor" data-cor="#fb8c00" style="background:#fb8c00" title="Laranja"></button>
+      <button type="button" class="cor" data-cor="#43a047" style="background:#43a047" title="Verde"></button>
+      <button type="button" class="cor" data-cor="#1e88e5" style="background:#1e88e5" title="Azul"></button>
+      <button type="button" class="cor" data-cor="#8e24aa" style="background:#8e24aa" title="Roxo"></button>
+      <label class="posicao" for="fPos">Posição <input type="number" id="fPos" min="1"></label>
+    </div>
+    <div id="fItem" contenteditable="true" role="textbox" aria-multiline="true" data-placeholder="O que você precisa fazer?"></div>
+    <p id="erroItem" style="color:var(--late);font-size:.85rem;min-height:1.2em;margin:0"></p>
+    <div class="acoes">
+      <button type="button" class="btn apagar" id="iApagar">Apagar</button>
+      <button type="button" class="btn" id="iCancelar" style="margin-left:auto">Cancelar</button>
+      <button type="button" class="btn principal salvar">Salvar</button>
+    </div>
+  </form>
+</dialog>
+
+<!-- Pop-up para criar ou editar uma tarefa -->
+<dialog id="popup">
+  <form id="form" onsubmit="return false">
+    <h3 id="popupTitulo">Nova tarefa</h3>
+    <div class="campo">
+      <label for="fTexto">Tarefa</label>
+      <input type="text" id="fTexto" placeholder="O que precisa ser feito?" autocomplete="off">
+    </div>
+    <div class="campo">
+      <label for="fHora">Horário</label>
+      <input type="time" id="fHora">
+    </div>
+    <div class="campo">
+      <label>Tipo de horário</label>
+      <div class="opcoes-tipo">
+        <label><input type="radio" name="tipo" value="fixa" checked>Fixo<small>Deve ser feita no horário</small></label>
+        <label><input type="radio" name="tipo" value="movel">Móvel<small>Pode ser feita durante o dia</small></label>
+      </div>
+    </div>
+    <div class="campo">
+      <label>Cor (prioridade)</label>
+      <div class="cores-postit" id="coresPostit"></div>
+    </div>
+    <p id="erroForm"></p>
+    <div class="acoes">
+      <button type="button" class="btn apagar" id="fApagar">Apagar</button>
+      <button type="button" class="btn" id="fCancelar" style="margin-left:auto">Cancelar</button>
+      <button type="button" class="btn principal salvar">Salvar</button>
+    </div>
+  </form>
+</dialog>
+
+<script>
+// ================= Configuração =================
+const HORA_LEMBRETE_MOVEIS = 21; // aviso à noite das tarefas móveis que faltam
+const ALTURA_CHIP = 20;          // altura aproximada de cada tarefa dentro do dia no calendário
+
+// ================= Dados (salvos no navegador) =================
+// Formato: { config: { tema }, dias: { "2026-10-30": { tarefas: [...], notas: "" } } }
+// Tarefa: { id, hora: "08:00" ou "", texto, tipo: "fixa" | "movel", feita }
+const CHAVE = "agenda-pessoal:v1";
+let dados;
+try { dados = JSON.parse(localStorage.getItem(CHAVE)) || {}; } catch { dados = {}; }
+dados.config ??= {};
+dados.config.tema ??= "escuro";
+dados.dias ??= {};
+dados.lista ??= []; // Lista sem data: [{ id, texto, html, feito }], na ordem de prioridade
+const escapar = t => t.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/\n/g, "<br>");
+for (const item of dados.lista) item.html ??= escapar(item.texto || "");
+dados.config.modo ??= "agenda";
+
+// Converte o formato antigo (fixas + variáveis) para a lista única de tarefas
+for (const d of Object.values(dados.dias)) {
+  d.tarefas ??= [];
+  if (d.fixas) { d.tarefas.push(...d.fixas.map(t => ({ ...t, tipo: "fixa" }))); delete d.fixas; }
+  if (d.variaveis) { d.tarefas.push(...d.variaveis.map(t => ({ ...t, hora: "", tipo: "movel" }))); delete d.variaveis; }
+}
+
+function salvar() {
+  try { localStorage.setItem(CHAVE, JSON.stringify(dados)); } catch {}
+}
+
+// ================= Datas =================
+const pad = n => String(n).padStart(2, "0");
+const chaveData = d => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+const minutos = hhmm => { const [h, m] = hhmm.split(":").map(Number); return h * 60 + m; };
+
+let dataAtual = new Date();
+let mesCalendario = new Date(dataAtual.getFullYear(), dataAtual.getMonth(), 1);
+
+const dia = () => (dados.dias[chaveData(dataAtual)] ??= { tarefas: [], notas: "" });
+const novoId = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+const agoraMin = () => { const n = new Date(); return n.getHours() * 60 + n.getMinutes(); };
+
+// Situação de uma data em relação a hoje: -1 passado, 0 hoje, 1 futuro
+function situacao(chave) {
+  const h = chaveData(new Date());
+  return chave < h ? -1 : chave > h ? 1 : 0;
+}
+// Fixa: atrasada quando o horário passou. Móvel: só quando o dia passou.
+function atrasada(t, chave) {
+  if (t.feita) return false;
+  const sit = situacao(chave);
+  if (sit < 0) return true;
+  return t.tipo === "fixa" && sit === 0 && t.hora && agoraMin() > minutos(t.hora);
+}
+// Ordem: tarefas sem horário primeiro, depois por horário
+const ordenar = lista => [...lista].sort((a, b) =>
+  (a.hora ? minutos(a.hora) : -1) - (b.hora ? minutos(b.hora) : -1));
+
+// Cores de post-it para associar prioridades ("" = sem cor)
+const CORES_POSTIT = [
+  { valor: "", nome: "Sem cor" },
+  { valor: "#fff176", nome: "Amarelo" },
+  { valor: "#ffab91", nome: "Laranja" },
+  { valor: "#f48fb1", nome: "Rosa" },
+  { valor: "#a5d6a7", nome: "Verde" },
+  { valor: "#81d4fa", nome: "Azul" },
+];
+document.getElementById("coresPostit").innerHTML = CORES_POSTIT.map(c =>
+  `<label class="${c.valor ? "" : "sem-cor"}"><input type="radio" name="cor" value="${c.valor}">` +
+  `<span style="${c.valor ? "background:" + c.valor : ""}">${c.nome}</span></label>`).join("");
+
+// ================= Lista de tarefas =================
+function desenhar() {
+  const d = dia();
+  const chave = chaveData(dataAtual);
+
+  const titulo = dataAtual.toLocaleDateString("pt-BR",
+    { weekday: "long", day: "numeric", month: "long", year: "numeric" });
+  document.getElementById("titulo").textContent = titulo[0].toUpperCase() + titulo.slice(1);
+  document.getElementById("seletorData").value = chave;
+  document.getElementById("tema").value = dados.config.tema;
+  document.documentElement.dataset.theme = dados.config.tema;
+
+  const lista = document.getElementById("lista");
+  lista.replaceChildren();
+  const tarefas = ordenar(d.tarefas);
+
+  if (!tarefas.length) {
+    const li = document.createElement("li");
+    li.className = "vazio";
+    li.textContent = "Nenhuma tarefa neste dia. Use “+ Adicionar tarefa”.";
+    lista.append(li);
+  }
+
+  // A linha do "agora" entra antes da primeira tarefa com horário depois de agora
+  const agora = agoraMin();
+  let agoraPosto = situacao(chave) !== 0;
+  const linhaAgora = () => {
+    const li = document.createElement("li");
+    li.className = "agora";
+    li.textContent = `Agora ${pad(Math.floor(agora / 60))}:${pad(agora % 60)}`;
+    return li;
+  };
+
+  for (const t of tarefas) {
+    if (!agoraPosto && t.hora && minutos(t.hora) > agora) { lista.append(linhaAgora()); agoraPosto = true; }
+
+    const li = document.createElement("li");
+    li.className = "tarefa" + (t.feita ? " feita" : "") + (atrasada(t, chave) ? " atrasada" : "");
+    li.title = "Clique para editar";
+
+    const check = document.createElement("input");
+    check.type = "checkbox";
+    check.checked = !!t.feita;
+    check.title = "Marcar como feita";
+    check.onclick = e => e.stopPropagation(); // marcar não abre o pop-up
+    check.onchange = () => { t.feita = check.checked; salvar(); desenhar(); };
+
+    const hora = document.createElement("span");
+    hora.className = "hora" + (t.hora ? "" : " vazia");
+    hora.textContent = t.hora || "—";
+
+    const texto = document.createElement("span");
+    texto.className = "texto" + (t.cor ? " colorida" : "");
+    texto.textContent = t.texto;
+    if (t.cor) texto.style.background = t.cor;
+
+    const tipo = document.createElement("span");
+    tipo.className = "tipo" + (t.tipo === "movel" ? " movel" : "");
+    tipo.textContent = t.tipo === "movel" ? "móvel" : "fixo";
+
+    const excluir = document.createElement("button");
+    excluir.className = "excluir"; excluir.textContent = "🗑"; excluir.title = "Excluir tarefa";
+    excluir.onclick = e => {
+      e.stopPropagation(); // não abre o pop-up
+      // Primeiro clique pede confirmação; o segundo exclui
+      if (!excluir.classList.contains("confirmar")) {
+        excluir.classList.add("confirmar"); excluir.textContent = "Excluir?";
+        setTimeout(() => { excluir.classList.remove("confirmar"); excluir.textContent = "🗑"; }, 3000);
+        return;
+      }
+      d.tarefas = d.tarefas.filter(x => x !== t);
+      salvar(); desenhar();
+    };
+
+    li.append(check, hora, texto, tipo, excluir);
+    li.onclick = () => abrirPopup(t);
+    lista.append(li);
+  }
+  if (!agoraPosto && tarefas.length) lista.append(linhaAgora());
+
+  const notas = document.getElementById("notas");
+  if (document.activeElement !== notas) notas.value = d.notas || "";
+
+  const feitas = tarefas.filter(t => t.feita).length;
+  document.getElementById("resumo").textContent =
+    tarefas.length ? `${feitas} de ${tarefas.length} tarefas feitas` : "Nenhuma tarefa";
+
+  desenharCalendario();
+}
+
+// ================= Pop-up =================
+const popup = document.getElementById("popup");
+const fTexto = document.getElementById("fTexto");
+const fHora = document.getElementById("fHora");
+const erroForm = document.getElementById("erroForm");
+let editando = null; // tarefa sendo editada (null = nova)
+
+function abrirPopup(tarefa = null) {
+  editando = tarefa;
+  document.getElementById("popupTitulo").textContent = tarefa ? "Editar tarefa" : "Nova tarefa";
+  fTexto.value = tarefa?.texto || "";
+  fHora.value = tarefa?.hora || "";
+  document.querySelector(`input[name=tipo][value=${tarefa?.tipo || "fixa"}]`).checked = true;
+  document.querySelector(`input[name=cor][value="${tarefa?.cor || ""}"]`).checked = true;
+  document.getElementById("fApagar").style.display = tarefa ? "" : "none";
+  erroForm.textContent = "";
+  popup.showModal();
+  fTexto.focus();
+}
+
+// O Salvar não usa "envio de formulário": alguns visualizadores bloqueiam isso e o botão parecia não fazer nada
+function salvarTarefa() {
+  const texto = fTexto.value.trim();
+  const hora = fHora.value;
+  const tipo = document.querySelector("input[name=tipo]:checked").value;
+  const cor = document.querySelector("input[name=cor]:checked").value;
+  if (!texto) { erroForm.textContent = "Escreva a tarefa."; fTexto.focus(); return; }
+  if (tipo === "fixa" && !hora) { erroForm.textContent = "Tarefa fixa precisa de horário."; fHora.focus(); return; }
+
+  if (editando) Object.assign(editando, { texto, hora, tipo, cor });
+  else dia().tarefas.push({ id: novoId(), texto, hora, tipo, cor, feita: false });
+  popup.close(); salvar(); desenhar();
+}
+document.querySelector("#form .salvar").onclick = salvarTarefa;
+// Enter nos campos também salva
+[fTexto, fHora].forEach(c => c.onkeydown = e => { if (e.key === "Enter") { e.preventDefault(); salvarTarefa(); } });
+document.getElementById("fCancelar").onclick = () => popup.close();
+document.getElementById("fApagar").onclick = () => {
+  const d = dia();
+  d.tarefas = d.tarefas.filter(t => t !== editando);
+  popup.close(); salvar(); desenhar();
+};
+document.getElementById("novaTarefa").onclick = () => abrirPopup();
+
+// ================= Calendário do mês =================
+// Faz os painéis irem até o fim da tela, para os dias do calendário ficarem mais altos
+function ajustarAltura() {
+  for (const painel of document.querySelectorAll("main .painel, #paginaLista .painel")) {
+    if (!painel.offsetParent) continue; // painel escondido
+    const topo = painel.getBoundingClientRect().top + window.scrollY;
+    painel.style.minHeight = Math.max(420, window.innerHeight - topo - 16) + "px";
+  }
+}
+let esperaRedimensionar;
+window.addEventListener("resize", () => {
+  clearTimeout(esperaRedimensionar);
+  esperaRedimensionar = setTimeout(desenhar, 150);
+});
+
+function desenharCalendario() {
+  const cal = document.getElementById("cal");
+  cal.replaceChildren();
+  ajustarAltura();
+  const dias = []; // guardado para preencher as tarefas depois de medir a altura dos dias
+  document.getElementById("calTitulo").textContent =
+    mesCalendario.toLocaleDateString("pt-BR", { month: "long", year: "numeric" });
+
+  for (const s of ["D", "S", "T", "Q", "Q", "S", "S"]) {
+    const el = document.createElement("div");
+    el.className = "sem"; el.textContent = s;
+    cal.append(el);
+  }
+
+  // Começa no domingo da semana do dia 1 e mostra 6 semanas
+  const inicio = new Date(mesCalendario);
+  inicio.setDate(1 - inicio.getDay());
+  const hoje = chaveData(new Date());
+  const selecionado = chaveData(dataAtual);
+
+  for (let i = 0; i < 42; i++) {
+    const data = new Date(inicio.getFullYear(), inicio.getMonth(), inicio.getDate() + i);
+    const chave = chaveData(data);
+    const info = dados.dias[chave];
+
+    const cel = document.createElement("button");
+    cel.className = "cel"
+      + (data.getMonth() !== mesCalendario.getMonth() ? " fora" : "")
+      + (chave === hoje ? " hoje" : "")
+      + (chave === selecionado ? " selecionado" : "");
+    cel.title = data.toLocaleDateString("pt-BR", { weekday: "long", day: "numeric", month: "long" });
+
+    const num = document.createElement("span");
+    num.className = "num"; num.textContent = data.getDate();
+    cel.append(num);
+
+    dias.push({ cel, info, chave });
+
+    cel.onclick = () => {
+      irPara(data);
+      if (window.innerWidth < 1000) mostrarAba("tarefas"); // no celular, volta para as tarefas
+    };
+    cal.append(cel);
+  }
+
+  // Quantas tarefas cabem em cada dia, conforme a altura que sobrou na tela
+  const alturaDia = cal.querySelector(".cel")?.clientHeight || 0;
+  const cabem = window.innerWidth <= 700 ? 8 : Math.max(1, Math.floor((alturaDia - 40) / ALTURA_CHIP));
+
+  for (const { cel, info, chave } of dias) {
+    if (info) {
+      const itens = ordenar(info.tarefas);
+      const temNota = !!info.notas?.trim();
+      let mostrar = cabem - (temNota ? 1 : 0);
+      if (itens.length > mostrar) mostrar = Math.max(0, mostrar - 1); // espaço para o "+N mais"
+      for (const t of itens.slice(0, mostrar)) {
+        const chip = document.createElement("span");
+        chip.className = "chip" + (t.tipo === "movel" ? " movel" : "") + (t.feita ? " feita" : "") + (atrasada(t, chave) ? " atrasada" : "");
+        chip.textContent = (t.hora ? t.hora + " " : "") + t.texto;
+        if (t.cor && !chip.classList.contains("atrasada")) { chip.style.background = t.cor; chip.classList.add("colorida"); }
+        cel.append(chip);
+      }
+      if (itens.length > mostrar) {
+        const extra = document.createElement("span");
+        extra.className = "chip extra"; extra.textContent = `+${itens.length - mostrar} mais`;
+        cel.append(extra);
+      }
+      if (temNota) {
+        const nota = document.createElement("span");
+        nota.className = "chip nota"; nota.textContent = "📝 anotação";
+        cel.append(nota);
+      }
+    }
+  }
+}
+
+// ================= Navegação =================
+function irPara(data) {
+  dataAtual = new Date(data.getFullYear(), data.getMonth(), data.getDate());
+  mesCalendario = new Date(dataAtual.getFullYear(), dataAtual.getMonth(), 1);
+  desenhar();
+}
+function mudarDia(delta) {
+  irPara(new Date(dataAtual.getFullYear(), dataAtual.getMonth(), dataAtual.getDate() + delta));
+}
+function mudarMes(delta) {
+  mesCalendario = new Date(mesCalendario.getFullYear(), mesCalendario.getMonth() + delta, 1);
+  desenharCalendario();
+}
+
+document.getElementById("ant").onclick = () => mudarDia(-1);
+document.getElementById("prox").onclick = () => mudarDia(1);
+document.getElementById("hoje").onclick = () => irPara(new Date());
+document.getElementById("calAnt").onclick = () => mudarMes(-1);
+document.getElementById("calProx").onclick = () => mudarMes(1);
+document.getElementById("seletorData").onchange = e => {
+  if (!e.target.value) return;
+  const [a, m, d] = e.target.value.split("-").map(Number);
+  irPara(new Date(a, m - 1, d));
+};
+document.getElementById("tema").onchange = e => {
+  dados.config.tema = e.target.value; salvar(); desenhar();
+};
+document.getElementById("notas").oninput = e => { dia().notas = e.target.value; salvar(); };
+document.getElementById("notas").onblur = () => desenharCalendario();
+document.addEventListener("keydown", e => {
+  if (popup.open || popupItem.open || dados.config.modo === "lista") return;
+  if (e.altKey && e.key === "ArrowLeft") mudarDia(-1);
+  if (e.altKey && e.key === "ArrowRight") mudarDia(1);
+});
+
+// Abas: no celular são três; na tela média, Tarefas e Anotações alternam ao lado do calendário
+function mostrarAba(nome) {
+  document.querySelectorAll(".abas button").forEach(x => x.classList.toggle("ativa", x.dataset.aba === nome));
+  document.querySelectorAll(".painel").forEach(p => p.classList.toggle("ativo", p.id === nome));
+  desenharCalendario();
+}
+document.querySelectorAll(".abas button").forEach(b => b.onclick = () => mostrarAba(b.dataset.aba));
+
+// ================= Alternar Agenda / Lista =================
+function mostrarModo(modo) {
+  dados.config.modo = modo; salvar();
+  document.body.classList.toggle("modo-lista", modo === "lista");
+  document.querySelectorAll(".modos button").forEach(b => b.classList.toggle("ativo", b.dataset.modo === modo));
+  if (modo === "lista") desenharLista(); else desenharCalendario();
+  ajustarAltura();
+}
+document.querySelectorAll(".modos button").forEach(b => b.onclick = () => mostrarModo(b.dataset.modo));
+
+// ================= Página Lista =================
+const lista = dados.lista;
+function mover(de, para) {
+  para = Math.max(0, Math.min(lista.length - 1, para));
+  if (de === para) return;
+  const [item] = lista.splice(de, 1);
+  lista.splice(para, 0, item);
+  salvar(); desenharLista();
+}
+
+let arrastando = null; // índice do item sendo arrastado
+function desenharLista() {
+  const ul = document.getElementById("itens");
+  ul.replaceChildren();
+  if (!lista.length) {
+    const li = document.createElement("li");
+    li.className = "vazio";
+    li.textContent = "A lista está vazia. Use “+ Adicionar anotação”.";
+    ul.append(li);
+  }
+  lista.forEach((item, i) => {
+    const li = document.createElement("li");
+    li.className = "item" + (item.feito ? " feito" : "");
+    li.dataset.i = i;
+
+    const alca = document.createElement("span");
+    alca.className = "alca"; alca.textContent = "⋮⋮"; alca.title = "Arraste para mudar a posição";
+
+    const pos = document.createElement("span");
+    pos.className = "pos"; pos.textContent = `${i + 1}º`;
+
+    const check = document.createElement("input");
+    check.type = "checkbox"; check.checked = !!item.feito; check.title = "Marcar como feito";
+    check.onchange = () => { item.feito = check.checked; salvar(); desenharLista(); };
+
+    const texto = document.createElement("span");
+    texto.className = "texto"; texto.innerHTML = item.html; texto.title = "Clique para editar";
+    texto.onclick = () => abrirItem(item);
+
+    const setas = document.createElement("span");
+    setas.className = "setas";
+    const botao = (rotulo, titulo, destino, desativado) => {
+      const b = document.createElement("button");
+      b.textContent = rotulo; b.title = titulo; b.disabled = desativado;
+      b.onclick = () => mover(i, destino);
+      setas.append(b);
+    };
+    botao("⤒", "Mover para o topo", 0, i === 0);
+    botao("↑", "Subir", i - 1, i === 0);
+    botao("↓", "Descer", i + 1, i === lista.length - 1);
+    const excluir = document.createElement("button");
+    excluir.className = "excluir"; excluir.textContent = "🗑"; excluir.title = "Excluir";
+    excluir.onclick = () => {
+      // Primeiro clique pede confirmação; o segundo exclui
+      if (!excluir.classList.contains("confirmar")) {
+        excluir.classList.add("confirmar"); excluir.textContent = "Excluir?";
+        setTimeout(() => { excluir.classList.remove("confirmar"); excluir.textContent = "🗑"; }, 3000);
+        return;
+      }
+      lista.splice(i, 1); salvar(); desenharLista();
+    };
+    setas.append(excluir);
+
+    li.append(alca, pos, check, texto, setas);
+
+    // Arrastar pela alça (funciona com mouse e com o dedo no celular)
+    alca.onpointerdown = e => {
+      arrastando = i;
+      li.classList.add("arrastando");
+      alca.setPointerCapture(e.pointerId);
+    };
+    alca.onpointermove = e => {
+      if (arrastando === null) return;
+      ul.querySelectorAll(".item").forEach(x => x.classList.remove("alvo-antes", "alvo-depois"));
+      const alvo = alvoSob(e.clientY);
+      if (alvo) alvo.el.classList.add(alvo.antes ? "alvo-antes" : "alvo-depois");
+    };
+    alca.onpointerup = e => {
+      if (arrastando === null) return;
+      const alvo = alvoSob(e.clientY);
+      const de = arrastando;
+      arrastando = null;
+      if (alvo) {
+        let para = Number(alvo.el.dataset.i) + (alvo.antes ? 0 : 1);
+        if (para > de) para--; // o item sai da posição antiga antes de entrar na nova
+        mover(de, para);
+      }
+      desenharLista();
+    };
+    ul.append(li);
+  });
+}
+// Qual item está sob o ponteiro, e se é na metade de cima (antes) ou de baixo (depois)
+function alvoSob(y) {
+  for (const el of document.querySelectorAll("#itens .item")) {
+    const r = el.getBoundingClientRect();
+    if (y >= r.top && y <= r.bottom) return { el, antes: y < r.top + r.height / 2 };
+  }
+  return null;
+}
+
+// Pop-up do item da Lista
+const popupItem = document.getElementById("popupItem");
+const fItem = document.getElementById("fItem");
+const fPos = document.getElementById("fPos");
+let itemEditando = null;
+function abrirItem(item = null) {
+  itemEditando = item;
+  document.getElementById("popupItemTitulo").textContent = item ? "Editar anotação" : "Nova anotação";
+  fItem.innerHTML = item?.html || "";
+  fPos.max = lista.length + (item ? 0 : 1);
+  fPos.value = item ? lista.indexOf(item) + 1 : lista.length + 1; // nova entra no fim
+  document.getElementById("iApagar").style.display = item ? "" : "none";
+  document.getElementById("erroItem").textContent = "";
+  popupItem.showModal();
+  fItem.focus();
+}
+function salvarItem() {
+  const html = limparHtml(fItem.innerHTML);
+  const texto = fItem.innerText.trim();
+  if (!texto) { document.getElementById("erroItem").textContent = "Escreva a anotação."; fItem.focus(); return; }
+  const pos = Math.max(1, Number(fPos.value) || lista.length + 1) - 1;
+  if (itemEditando) {
+    Object.assign(itemEditando, { texto, html });
+    mover(lista.indexOf(itemEditando), pos);
+  } else {
+    lista.splice(Math.min(pos, lista.length), 0, { id: novoId(), texto, html, feito: false });
+  }
+  popupItem.close(); salvar(); desenharLista();
+}
+document.querySelector("#formItem .salvar").onclick = salvarItem;
+fPos.onkeydown = e => { if (e.key === "Enter") { e.preventDefault(); salvarItem(); } };
+// ----- Editor com negrito e cores -----
+document.querySelectorAll("#ferramentas [data-cmd]").forEach(b => {
+  b.onmousedown = e => e.preventDefault(); // não tira o cursor do texto
+  b.onclick = () => { document.execCommand(b.dataset.cmd); fItem.focus(); };
+});
+document.querySelectorAll("#ferramentas [data-cor]").forEach(b => {
+  b.onmousedown = e => e.preventDefault();
+  b.onclick = () => {
+    document.execCommand("styleWithCSS", false, true);
+    // "padrao" usa uma cor-marcador que limparHtml() remove, voltando à cor do tema
+    document.execCommand("foreColor", false, b.dataset.cor === "padrao" ? COR_PADRAO : b.dataset.cor);
+    fItem.focus();
+  };
+});
+// Colar sempre como texto simples (evita trazer formatação estranha de outros sites)
+fItem.onpaste = e => {
+  e.preventDefault();
+  document.execCommand("insertText", false, e.clipboardData.getData("text/plain"));
+};
+
+// Guarda só negrito, cor e quebras de linha; remove todo o resto
+const COR_PADRAO = "#010203";
+function limparHtml(html) {
+  const origem = document.createElement("div");
+  origem.innerHTML = html;
+  const destino = document.createElement("div");
+  const copiar = (de, para) => {
+    for (const no of de.childNodes) {
+      if (no.nodeType === Node.TEXT_NODE) { para.append(no.textContent); continue; }
+      if (no.nodeType !== Node.ELEMENT_NODE) continue;
+      const tag = no.tagName;
+      if (tag === "BR") { para.append(document.createElement("br")); continue; }
+      let alvo = para;
+      if (tag === "DIV" || tag === "P") { alvo = document.createElement("div"); para.append(alvo); }
+      const negrito = tag === "B" || tag === "STRONG" || Number(no.style?.fontWeight) >= 600 || no.style?.fontWeight === "bold";
+      const corBruta = no.style?.color || no.getAttribute("color") || "";
+      const cor = corBruta && !mesmaCor(corBruta, COR_PADRAO) ? corBruta : "";
+      if (negrito) { const b = document.createElement("b"); alvo.append(b); alvo = b; }
+      if (cor) { const sp = document.createElement("span"); sp.style.color = cor; alvo.append(sp); alvo = sp; }
+      copiar(no, alvo);
+    }
+  };
+  copiar(origem, destino);
+  return destino.innerHTML;
+}
+function mesmaCor(a, b) {
+  const el = document.createElement("span");
+  el.style.color = a; const x = el.style.color;
+  el.style.color = b; return x === el.style.color;
+}
+
+// Ctrl+Enter salva (Enter sozinho pula linha na anotação)
+fItem.onkeydown = e => { if (e.key === "Enter" && e.ctrlKey) { e.preventDefault(); salvarItem(); } };
+document.getElementById("iCancelar").onclick = () => popupItem.close();
+document.getElementById("iApagar").onclick = () => {
+  lista.splice(lista.indexOf(itemEditando), 1);
+  popupItem.close(); salvar(); desenharLista();
+};
+document.getElementById("novoItem").onclick = () => abrirItem();
+
+// ================= Avisos (notificações do navegador) =================
+const btnAvisos = document.getElementById("avisos");
+const avisados = new Set(); // evita avisar a mesma tarefa duas vezes
+
+function estadoAvisos() {
+  if (!("Notification" in window)) { btnAvisos.textContent = "Avisos indisponíveis"; btnAvisos.disabled = true; return; }
+  btnAvisos.textContent = Notification.permission === "granted" ? "🔔 Avisos ligados"
+    : Notification.permission === "denied" ? "🔕 Avisos bloqueados" : "🔔 Ativar avisos";
+}
+btnAvisos.onclick = async () => {
+  if (!("Notification" in window)) return;
+  await Notification.requestPermission();
+  estadoAvisos();
+  if (Notification.permission === "granted") new Notification("Agenda", { body: "Avisos ligados ✔" });
+};
+
+function verificarAvisos() {
+  if (!("Notification" in window) || Notification.permission !== "granted") return;
+  const hoje = dados.dias[chaveData(new Date())];
+  if (!hoje) return;
+  const agora = agoraMin();
+  // Fixas: avisa no horário (com até 5 min de tolerância, caso o PC estivesse ocupado)
+  for (const t of hoje.tarefas) {
+    if (t.tipo !== "fixa" || t.feita || !t.hora || avisados.has(t.id)) continue;
+    const m = minutos(t.hora);
+    if (agora >= m && agora < m + 5) {
+      avisados.add(t.id);
+      new Notification(`⏰ ${t.hora}: ${t.texto}`, { body: "Tarefa com horário fixo", tag: t.id });
+    }
+  }
+  // Móveis: um lembrete à noite com o que falta
+  const faltam = hoje.tarefas.filter(t => t.tipo === "movel" && !t.feita);
+  const chaveLembrete = "movel-" + chaveData(new Date());
+  if (faltam.length && agora >= HORA_LEMBRETE_MOVEIS * 60 && !avisados.has(chaveLembrete)) {
+    avisados.add(chaveLembrete);
+    new Notification(`Faltam ${faltam.length} tarefa(s) de hoje`, { body: faltam.map(t => t.texto).join(", ") });
+  }
+}
+
+// A cada 30s: confere avisos e atualiza destaques (linha do agora, atrasadas)
+setInterval(() => {
+  verificarAvisos();
+  if (!popup.open && document.activeElement?.id !== "notas") desenhar();
+}, 30000);
+
+salvar(); // grava a conversão do formato antigo, se houve
+estadoAvisos();
+desenhar();
+mostrarModo(dados.config.modo);
+</script>
+</body>
+</html>
