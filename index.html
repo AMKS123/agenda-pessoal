@@ -72,7 +72,7 @@
   #nuvem.alerta { border-color: var(--late); color: var(--late); }
 
   #avisos .rot { display: none; }
-  @media (max-width: 700px) { #tema .rot { display: none; } .topo-tarefas h2 { display: none; } .topo-tarefas .botoes-topo { flex: 1; flex-wrap: nowrap; } .topo-tarefas .botoes-topo .btn { flex: 1; padding: 6px 8px; } .so-largo { display: none; } }
+  @media (max-width: 700px) { #tema .rot { display: none; } .topo-tarefas h2 { display: none; } .topo-tarefas .botoes-topo { flex: 1; flex-wrap: nowrap; } .topo-tarefas .botoes-topo .btn { flex: 1; padding: 6px 8px; } }
   @media (max-width: 1100px) {
     #titulo .longo { display: none; } #titulo .curto { display: inline; }
   }
@@ -360,8 +360,8 @@
     <div class="topo-tarefas">
       <h2>Tarefas do dia</h2>
       <div class="botoes-topo">
-        <button class="btn" id="novaNota">+ <span class="so-largo">Adicionar </span>anotação</button>
-        <button class="btn principal" id="novaTarefa">+ <span class="so-largo">Adicionar </span>tarefa</button>
+        <button class="btn" id="novaNota">+ Anotação</button>
+        <button class="btn principal" id="novaTarefa">+ Tarefa</button>
       </div>
     </div>
     <ul class="lista" id="lista"></ul>
@@ -632,7 +632,7 @@ function desenhar() {
   if (!tarefas.length && !d.anotacoes.length) {
     const li = document.createElement("li");
     li.className = "vazio";
-    li.textContent = "Nada neste dia. Use “+ Adicionar tarefa” ou “+ Adicionar anotação”.";
+    li.textContent = "Nada neste dia. Use “+ Tarefa” ou “+ Anotação”.";
     lista.append(li);
   }
 
