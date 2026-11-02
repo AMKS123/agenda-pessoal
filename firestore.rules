@@ -1,0 +1,28 @@
+// Regras do Firestore da Agenda Pessoal (projeto Firebase agenda-pessoal-8d1ad).
+// Este arquivo é só uma cópia de referência: as regras valem quando são coladas no
+// Console do Firebase > Firestore Database > Regras > Publicar.
+//
+// Quem pode usar a nuvem: só os e-mails da lista abaixo.
+// Qualquer pessoa consegue "Entrar com Google" no site, mas quem não está na lista
+// não lê nem grava nada (o app mostra "Sem acesso" e os dados ficam só no aparelho).
+// Para liberar outra pessoa: acrescente o e-mail dela na lista (entre aspas simples,
+// separado por vírgula), clique em Publicar. Cada pessoa continua vendo só os próprios dados.
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function liberado() {
+      return request.auth != null
+        && request.auth.token.email_verified == true
+        && request.auth.token.email.lower() in [
+          'seu-email@gmail.com'
+          // , 'email-do-amigo@gmail.com'
+        ];
+    }
+
+    // Cada pessoa só mexe na própria pasta usuarios/{uid}
+    match /usuarios/{uid}/{document=**} {
+      allow read, write: if liberado() && request.auth.uid == uid;
+    }
+  }
+}

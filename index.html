@@ -1548,7 +1548,8 @@ mostrarModo(dados.config.modo);
 // Cada pessoa logada tem seus dados em usuarios/{uid}:
 //   dias/{AAAA-MM-DD} -> { tarefas, anotacoes }     meta/lista -> { itens }     meta/recorrentes -> { itens }
 // Tema e página aberta continuam só neste aparelho (cada tela pode ter o seu).
-// Configuração do app web no Firebase (estas chaves são públicas; quem protege os dados são as regras do Firestore)
+// Configuração do app web no Firebase (estas chaves são públicas; quem protege os dados são as regras do Firestore,
+// que só deixam usar a nuvem os e-mails liberados — ver README: "Quem pode usar a nuvem")
 const FIREBASE_CONFIG = {
   apiKey: "AIzaSyDxL4FjCxnJhNgnCO7G752boLR8IQxaHAU",
   authDomain: "agenda-pessoal-8d1ad.firebaseapp.com",
@@ -1585,11 +1586,15 @@ async function iniciar() {
   catch { db = initializeFirestore(app, {}); }
 
   let usuario = null;
+  let semAcesso = false; // conta logada, mas não liberada nas regras do Firestore (ver README: "Quem pode usar a nuvem")
   let pararDeOuvir = [];
   let enviados = {};  // último conteúdo enviado/recebido de cada documento, para só enviar o que mudou
   let espera;
 
-  const mostrarConectado = () => status(usuario.displayName?.split(" ")[0] || "Conectado",
+  const mostrarSemAcesso = () => status("Sem acesso",
+    `A conta ${usuario.email} entrou, mas não está liberada para salvar na nuvem desta agenda. ` +
+    `Seus dados continuam só neste aparelho. Peça ao dono da agenda para liberar este e-mail. Clique para sair.`, "alerta");
+  const mostrarConectado = () => semAcesso ? mostrarSemAcesso() : status(usuario.displayName?.split(" ")[0] || "Conectado",
     `Sincronizado como ${usuario.email}. Clique para sair.`, "ligado");
 
   // ----- Entrar e sair -----
@@ -1628,17 +1633,24 @@ async function iniciar() {
 
   onAuthStateChanged(auth, async u => {
     pararDeOuvir.forEach(parar => parar());
-    pararDeOuvir = []; enviados = {}; usuario = u;
+    pararDeOuvir = []; enviados = {}; usuario = u; semAcesso = false;
     if (!u) { status("Entrar", "Entrar com Google para salvar na nuvem e sincronizar entre aparelhos"); return; }
 
     status("Sincronizando…");
     const base = ["usuarios", u.uid];
 
     // 1ª carga: o que está na nuvem vale; o que só existe neste aparelho é enviado
-    const [snapDias, ...snapMetas] = await Promise.all([
-      getDocs(collection(db, ...base, "dias")),
-      ...METAS.map(nome => getDoc(doc(db, ...base, "meta", nome))),
-    ]);
+    let snapDias, snapMetas;
+    try {
+      [snapDias, ...snapMetas] = await Promise.all([
+        getDocs(collection(db, ...base, "dias")),
+        ...METAS.map(nome => getDoc(doc(db, ...base, "meta", nome))),
+      ]);
+    } catch (e) {
+      if (usuario !== u) return; // saiu enquanto carregava
+      if (e.code === "permission-denied") { semAcesso = true; mostrarSemAcesso(); return; } // conta fora da lista liberada
+      console.error(e); status("Erro na nuvem", e.code || String(e), "alerta"); return;
+    }
     snapDias.forEach(d => {
       dados.dias[d.id] = diaLimpo(d.data());
       // Dia ainda no formato antigo: fica sem marcar como enviado, para subir já convertido
@@ -1663,25 +1675,25 @@ async function iniciar() {
         dados.dias[ch.doc.id] = d; enviados["dia:" + ch.doc.id] = json; mudou = true;
       }
       if (mudou) { salvar(); redesenhar(); }
-    }));
+    }, e => console.error(e)));
     for (const nome of METAS) pararDeOuvir.push(onSnapshot(doc(db, ...base, "meta", nome), snap => {
       if (snap.metadata.hasPendingWrites || !snap.exists()) return;
       const itens = snap.data().itens || [], json = JSON.stringify(itens);
       if (enviados[nome] === json) return;
       trocar(nome, itens); enviados[nome] = json;
       salvar(); redesenhar();
-    }));
+    }, e => console.error(e)));
     mostrarConectado();
   });
 
   // ----- Envio (espera 0,7s sem mudanças para não enviar a cada letra) -----
   window.nuvemAgendar = () => {
-    if (!usuario) return;
+    if (!usuario || semAcesso) return;
     clearTimeout(espera);
     espera = setTimeout(enviar, 700);
   };
   async function enviar() {
-    if (!usuario) return;
+    if (!usuario || semAcesso) return;
     const base = ["usuarios", usuario.uid];
     const envios = [];
     for (const [chave, d] of Object.entries(dados.dias)) {
@@ -1699,7 +1711,11 @@ async function iniciar() {
     if (!envios.length) return;
     status(navigator.onLine ? "Salvando…" : "Offline", navigator.onLine ? "Salvando…" : "Sem internet: salva quando voltar");
     try { await Promise.all(envios); mostrarConectado(); }
-    catch (e) { console.error(e); status("Erro ao salvar", e.code || "", "alerta"); }
+    catch (e) {
+      console.error(e);
+      if (e.code === "permission-denied") { semAcesso = true; mostrarSemAcesso(); }
+      else status("Erro ao salvar", e.code || "", "alerta");
+    }
   }
 }
 </script>
