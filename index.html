@@ -153,7 +153,10 @@
   #popup { width: min(520px, calc(100vw - 32px)); max-height: calc(100vh - 32px); overflow: auto; }
   .linha-rec { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
   .linha-rec label { font-size: .8rem; }
-  #form:not([data-cat=recorrente]) .so-recorrente, #form[data-cat=recorrente] .nao-recorrente { display: none; }
+  #form:not([data-cat=recorrente]) .so-recorrente, #form[data-cat=recorrente]:not([data-edita-rec]) .nao-recorrente { display: none; }
+  .divisoria.atrasadas { color: var(--late); }
+  .divisoria.atrasadas::before, .divisoria.atrasadas::after { background: var(--late); }
+  .tarefa .dia-orig { font-size: .75rem; color: var(--late); font-variant-numeric: tabular-nums; margin-right: 8px; display: inline-block; font-weight: 600; }
   .opcoes-tipo label {
     border: 1px solid var(--line); border-radius: 10px; padding: 10px; cursor: pointer; color: var(--ink); margin: 0;
   }
@@ -506,6 +509,17 @@
   </div>
 </dialog>
 
+<!-- Pop-up ao salvar uma tarefa recorrente editada: muda só este dia ou todas -->
+<dialog id="popupEditarRec">
+  <h3>Editar tarefa recorrente</h3>
+  <p id="editarRecTexto" style="margin:0 0 4px"></p>
+  <div class="acoes">
+    <button type="button" class="btn" id="edRecCancelar" style="margin-right:auto">Voltar</button>
+    <button type="button" class="btn" id="edRecDia">Só este dia</button>
+    <button type="button" class="btn principal" id="edRecTodos">Todos</button>
+  </div>
+</dialog>
+
 <!-- Pop-up para criar ou editar uma tarefa -->
 <dialog id="popup">
   <form id="form" onsubmit="return false">
@@ -523,7 +537,7 @@
       <input type="text" id="fTexto" placeholder="O que precisa ser feito?" autocomplete="off">
     </div>
     <div class="campo" style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
-      <div class="nao-recorrente"><label for="fData">Data</label><input type="date" id="fData"></div>
+      <div class="nao-recorrente"><label for="fData" id="rotuloData">Data</label><input type="date" id="fData"></div>
       <div><label for="fHora">Horário</label><input type="time" id="fHora"></div>
     </div>
     <div class="campo so-recorrente linha-rec">
@@ -652,6 +666,26 @@ function tarefasDoDia(chave) {
     .map(r => ({ ...r, categoria: "recorrente", feita: !!r.feitas?.[chave], rec: r }));
   return [...(dados.dias[chave]?.tarefas || []), ...recs];
 }
+// Tarefas Atrasadas: o que não foi feito em dias passados aparece em hoje, até ser marcado.
+// A tarefa continua guardada no dia original (o histórico não muda); só é mostrada de novo em hoje.
+// Recorrentes: cada repetição perdida, olhando até DIAS_ATRASO_REC dias para trás e só depois de a recorrente ser criada.
+const DIAS_ATRASO_REC = 30;
+const criadaEm = t => { const n = parseInt(String(t.id).slice(0, -4), 36); return n > 1.5e12 && n < 4e12 ? chaveData(new Date(n)) : ""; };
+function tarefasAtrasadas() {
+  const hoje = new Date(), chaveHoje = chaveData(hoje), lista = [];
+  for (const [chave, d] of Object.entries(dados.dias)) {
+    if (chave >= chaveHoje) continue;
+    for (const t of d.tarefas || []) if (!t.feita) lista.push({ t, chave });
+  }
+  for (let i = DIAS_ATRASO_REC; i >= 1; i--) {
+    const chave = chaveData(new Date(hoje.getFullYear(), hoje.getMonth(), hoje.getDate() - i));
+    for (const r of dados.recorrentes)
+      if (ocorre(r, chave) && !r.feitas?.[chave] && chave >= criadaEm(r))
+        lista.push({ t: { ...r, categoria: "recorrente", feita: false, rec: r }, chave });
+  }
+  return lista.sort((a, b) => a.chave < b.chave ? -1 : a.chave > b.chave ? 1
+    : (a.t.hora ? minutos(a.t.hora) : -1) - (b.t.hora ? minutos(b.t.hora) : -1));
+}
 const ICONE_CATEGORIA = { recorrente: "🔁", reuniao: "👥" };
 const dataCurta = chave => chave.split("-").reverse().join("/");
 
@@ -690,7 +724,9 @@ function desenhar() {
   lista.replaceChildren();
   const tarefas = ordenar(tarefasDoDia(chave));
 
-  if (!tarefas.length && !d.anotacoes.length) {
+  const atrasadas = situacao(chave) === 0 ? tarefasAtrasadas() : [];
+
+  if (!tarefas.length && !d.anotacoes.length && !atrasadas.length) {
     const li = document.createElement("li");
     li.className = "vazio";
     li.textContent = "Nada neste dia. Use “+ Tarefa” ou “+ Anotação”.";
@@ -715,12 +751,22 @@ function desenhar() {
     lista.append(li);
   }
 
-  // Linha divisória entre as anotações (acima) e as tarefas (abaixo)
-  if (tarefas.length || d.anotacoes.length) {
+  const divisoria = (texto, classe = "") => {
     const div = document.createElement("li");
-    div.className = "divisoria";
-    div.textContent = "Tarefas do Dia";
+    div.className = "divisoria " + classe;
+    div.textContent = texto;
     lista.append(div);
+  };
+
+  // Tarefas Atrasadas (só em hoje): o que ficou sem fazer nos dias anteriores
+  if (atrasadas.length) {
+    divisoria("Tarefas Atrasadas", "atrasadas");
+    for (const { t, chave: dOrig } of atrasadas) lista.append(linhaTarefa(t, dOrig, true));
+  }
+
+  // Linha divisória entre as anotações (acima) e as tarefas (abaixo)
+  if (tarefas.length || d.anotacoes.length || atrasadas.length) {
+    divisoria("Tarefas do Dia");
     if (!tarefas.length) {
       const li = document.createElement("li");
       li.className = "vazio"; li.style.padding = "12px 16px";
@@ -741,62 +787,72 @@ function desenhar() {
 
   for (const t of tarefas) {
     if (!agoraPosto && t.hora && minutos(t.hora) > agora) { lista.append(linhaAgora()); agoraPosto = true; }
-
-    const li = document.createElement("li");
-    li.className = "tarefa" + (t.feita ? " feita" : "") + (atrasada(t, chave) ? " atrasada" : "") + (t.id === notaAberta ? " aberta" : "");
-    li.title = "Clique para abrir as anotações";
-
-    const check = document.createElement("input");
-    check.type = "checkbox";
-    check.checked = !!t.feita;
-    check.title = "Marcar como feita";
-    check.onclick = e => e.stopPropagation(); // marcar não abre o pop-up
-    check.onchange = () => {
-      if (t.rec) (t.rec.feitas ??= {})[chave] = check.checked; // recorrente: só neste dia
-      else t.feita = check.checked;
-      if (!check.checked) guardarExecucao(t, chave, null); // desmarcou: apaga o início/fim anotado
-      salvar(); desenhar();
-      if (check.checked) perguntarExecucao(t, chave);
-    };
-
-    const hora = document.createElement("span");
-    hora.className = "hora" + (t.hora ? "" : " vazia");
-    hora.textContent = t.hora || "—";
-
-    const texto = document.createElement("span");
-    texto.className = "texto" + (t.cor ? " colorida" : "");
-    texto.textContent = (ICONE_CATEGORIA[t.categoria] ? ICONE_CATEGORIA[t.categoria] + " " : "") + t.texto;
-    if (t.cor) texto.style.background = t.cor;
-    const ex = execucaoDe(t, chave);
-    if (t.feita && ex) { // início e fim da execução, discreto antes da descrição
-      const sp = document.createElement("span");
-      sp.className = "exec"; sp.title = "Início e fim da execução";
-      sp.textContent = `${ex.ini || ""}–${ex.fim || ""}`;
-      texto.prepend(sp);
-    }
-
-    const tipo = document.createElement("span");
-    tipo.className = "tipo" + (t.tipo === "movel" ? " movel" : "");
-    tipo.textContent = t.tipo === "movel" ? "móvel" : "fixo";
-
-    let excluir;
-    if (t.rec) { // recorrente: pergunta se exclui só este dia ou todos
-      excluir = document.createElement("button");
-      excluir.className = "excluir"; excluir.textContent = "🗑"; excluir.title = "Excluir";
-      excluir.onclick = e => { e.stopPropagation(); perguntarExcluirRec(t.rec, chave); };
-    } else excluir = botaoExcluir("Excluir tarefa", () => {
-      removerTarefa(t);
-      salvar(); desenhar();
-    });
-
-    li.append(check, hora, texto, tipo, excluir);
-    li.onclick = () => abrirNota(t);
-    lista.append(li);
+    lista.append(linhaTarefa(t, chave));
   }
   if (!agoraPosto && tarefas.length) lista.append(linhaAgora());
 
   desenharNota();
   desenharCalendario();
+}
+
+// Uma linha de tarefa. chave = dia em que a tarefa está guardada (para as atrasadas, o dia original)
+function linhaTarefa(t, chave, ehAtrasada = false) {
+  const li = document.createElement("li");
+  li.className = "tarefa" + (t.feita ? " feita" : "") + (atrasada(t, chave) ? " atrasada" : "") + (idNota(t, chave) === notaAberta ? " aberta" : "");
+  li.title = "Clique para abrir as anotações";
+
+  const check = document.createElement("input");
+  check.type = "checkbox";
+  check.checked = !!t.feita;
+  check.title = "Marcar como feita";
+  check.onclick = e => e.stopPropagation(); // marcar não abre o pop-up
+  check.onchange = () => {
+    if (t.rec) (t.rec.feitas ??= {})[chave] = check.checked; // recorrente: só neste dia
+    else t.feita = check.checked;
+    if (!check.checked) guardarExecucao(t, chave, null); // desmarcou: apaga o início/fim anotado
+    salvar(); desenhar();
+    if (check.checked) perguntarExecucao(t, chave);
+  };
+
+  const hora = document.createElement("span");
+  hora.className = "hora" + (t.hora ? "" : " vazia");
+  hora.textContent = t.hora || "—";
+
+  const texto = document.createElement("span");
+  texto.className = "texto" + (t.cor ? " colorida" : "");
+  texto.textContent = (ICONE_CATEGORIA[t.categoria] ? ICONE_CATEGORIA[t.categoria] + " " : "") + t.texto;
+  if (t.cor) texto.style.background = t.cor;
+  const ex = execucaoDe(t, chave);
+  if (t.feita && ex) { // início e fim da execução, discreto antes da descrição
+    const sp = document.createElement("span");
+    sp.className = "exec"; sp.title = "Início e fim da execução";
+    sp.textContent = `${ex.ini || ""}–${ex.fim || ""}`;
+    texto.prepend(sp);
+  }
+  if (ehAtrasada) { // dia em que a tarefa deveria ter sido feita
+    const sp = document.createElement("span");
+    sp.className = "dia-orig"; sp.title = "Dia original da tarefa";
+    sp.textContent = dataCurta(chave).slice(0, 5);
+    texto.prepend(sp);
+  }
+
+  const tipo = document.createElement("span");
+  tipo.className = "tipo" + (t.tipo === "movel" ? " movel" : "");
+  tipo.textContent = t.tipo === "movel" ? "móvel" : "fixo";
+
+  let excluir;
+  if (t.rec) { // recorrente: pergunta se exclui só este dia ou todos
+    excluir = document.createElement("button");
+    excluir.className = "excluir"; excluir.textContent = "🗑"; excluir.title = "Excluir";
+    excluir.onclick = e => { e.stopPropagation(); perguntarExcluirRec(t.rec, chave); };
+  } else excluir = botaoExcluir("Excluir tarefa", () => {
+    removerTarefa(t, chave);
+    salvar(); desenhar();
+  });
+
+  li.append(check, hora, texto, tipo, excluir);
+  li.onclick = () => abrirNota(t, chave);
+  return li;
 }
 
 // ================= Início e fim da execução (perguntado ao marcar o check; opcional) =================
@@ -843,13 +899,23 @@ function botaoExcluir(titulo, aoExcluir) {
 
 // ================= Painel Anotação =================
 // Mostra a anotação do dia, ou as anotações de uma tarefa (Antes e Depois, se for reunião)
-let notaAberta = null; // id da anotação ou tarefa mostrada no painel
+let notaAberta = null; // id da anotação ou tarefa mostrada no painel ("AAAA-MM-DD|id" para uma atrasada de outro dia)
 const tituloNota = n => n.titulo || (n.texto || "").split("\n")[0] || "Sem título";
-const notaAtual = () => dia().anotacoes.find(n => n.id === notaAberta)
-  || tarefasDoDia(chaveData(dataAtual)).find(t => t.id === notaAberta);
+const idNota = (n, chave) => chave && chave !== chaveData(dataAtual) ? chave + "|" + n.id : n.id;
+// Devolve { n, chave }: a anotação/tarefa aberta e o dia em que ela está guardada
+function notaAtual() {
+  const hoje = chaveData(dataAtual);
+  if (notaAberta?.includes("|")) {
+    const [chave, id] = notaAberta.split("|");
+    const n = situacao(hoje) === 0 && tarefasAtrasadas().find(a => a.chave === chave && a.t.id === id)?.t;
+    return n ? { n, chave } : null;
+  }
+  const n = dia().anotacoes.find(n => n.id === notaAberta) || tarefasDoDia(hoje).find(t => t.id === notaAberta);
+  return n ? { n, chave: hoje } : null;
+}
 
-function abrirNota(n) {
-  notaAberta = n.id;
+function abrirNota(n, chave) {
+  notaAberta = idNota(n, chave);
   if (window.innerWidth < 2300) mostrarAba("anotacoes"); // no 4K o painel já está sempre visível
   desenhar();
 }
@@ -857,8 +923,8 @@ function desenharNota() {
   const vista = document.getElementById("notaVista");
   // Não redesenha enquanto se escreve no painel (perderia o cursor)
   if (vista.contains(document.activeElement) && vista.dataset.id === notaAberta) return;
-  const n = notaAtual();
-  vista.dataset.id = n ? n.id : "";
+  const atual = notaAtual(), n = atual?.n;
+  vista.dataset.id = n ? notaAberta : "";
   document.getElementById("editarNota").style.display = n ? "" : "none";
   const h3 = document.getElementById("notaTitulo");
   h3.textContent = "";
@@ -867,7 +933,7 @@ function desenharNota() {
     vista.innerHTML = `<p class="vazio">Clique numa tarefa ou anotação 📝 da lista do dia para abrir aqui.</p>`;
     return;
   }
-  const data = dataCurta(chaveData(dataAtual)) + " · ";
+  const data = dataCurta(atual.chave) + " · ";
   if (n.html !== undefined) { // anotação do dia: só leitura; clicar abre o pop-up
     h3.textContent = "📝 " + data + tituloNota(n);
     const corpo = document.createElement("div");
@@ -902,9 +968,10 @@ function barraFerramentas(editor) {
   return barra;
 }
 const editarNotaAberta = () => {
-  const n = notaAtual();
-  if (!n) return;
-  if (n.html !== undefined) abrirItem(n, "dia"); else abrirPopup(n.rec || n);
+  const atual = notaAtual();
+  if (!atual) return;
+  const { n, chave } = atual;
+  if (n.html !== undefined) abrirItem(n, "dia"); else abrirPopup(n.rec || n, chave);
 };
 document.getElementById("editarNota").onclick = editarNotaAberta;
 document.getElementById("novaNota").onclick = () => abrirItem(null, "dia");
@@ -917,6 +984,7 @@ const erroForm = document.getElementById("erroForm");
 const fNotaTarefa = document.getElementById("fNotaTarefa");
 const form = document.getElementById("form");
 let editando = null; // tarefa sendo editada (null = nova); recorrente = o original em dados.recorrentes
+let editandoChave = null; // dia em que a tarefa editada está guardada (recorrente: o dia escolhido)
 
 const ehRecorrente = t => dados.recorrentes.includes(t);
 const categoriaDe = t => !t ? "tarefa" : ehRecorrente(t) ? "recorrente" : t.categoria || "tarefa";
@@ -926,13 +994,17 @@ function mostrarCategoria(cat) {
 }
 document.querySelectorAll("input[name=categoria]").forEach(r => r.onchange = () => mostrarCategoria(r.value));
 
-function abrirPopup(tarefa = null) {
+function abrirPopup(tarefa = null, chave = chaveData(dataAtual)) {
   editando = tarefa;
+  editandoChave = chave;
+  // Recorrente já existente: mostra a data deste dia, para poder mudá-la (só este dia ou todos)
+  if (ehRecorrente(tarefa)) form.dataset.editaRec = "1"; else delete form.dataset.editaRec;
+  document.getElementById("rotuloData").textContent = ehRecorrente(tarefa) ? "Data deste dia" : "Data";
   document.getElementById("popupTitulo").textContent = tarefa ? "Editar tarefa" : "Nova tarefa";
   mostrarCategoria(categoriaDe(tarefa));
   fTexto.value = tarefa?.texto || "";
   fHora.value = tarefa?.hora || "";
-  document.getElementById("fData").value = chaveData(dataAtual); // mudar a data leva a tarefa (e suas anotações) para outro dia
+  document.getElementById("fData").value = chave; // mudar a data leva a tarefa (e suas anotações) para outro dia
   document.getElementById("fInicio").value = tarefa?.inicio || chaveData(dataAtual);
   document.getElementById("fFim").value = tarefa?.fim || "";
   document.getElementById("fRepete").value = tarefa?.repete || "semanal";
@@ -965,30 +1037,82 @@ function salvarTarefa() {
   if (cat === "recorrente") Object.assign(campos, { inicio, fim, repete });
   else campos.categoria = cat;
 
-  const novaData = document.getElementById("fData").value || chaveData(dataAtual);
-  let final = editando;
-  if (editando && ehRecorrente(editando) === (cat === "recorrente")) Object.assign(editando, campos);
-  else {
-    // Nova, ou mudou entre recorrente e não recorrente: sai de um lugar e entra no outro
-    const t = editando ? { ...editando, ...campos } : { id: novoId(), ...campos, feita: false };
-    if (editando) removerTarefa(editando);
-    if (cat === "recorrente") { delete t.categoria; delete t.feita; t.feitas ??= {}; dados.recorrentes.push(t); }
-    else { delete t.inicio; delete t.fim; delete t.repete; delete t.feitas; dia().tarefas.push(t); }
-    notaAberta = t.id; final = t;
-  }
-  // Reagendada para outro dia: sai deste dia e entra no novo, com tudo o que tinha
-  if (cat !== "recorrente" && novaData !== chaveData(dataAtual)) {
-    dia().tarefas = dia().tarefas.filter(x => x !== final);
-    (dados.dias[novaData] ??= { tarefas: [], anotacoes: [] }).tarefas.push(final);
-    notaAberta = final.id;
-    popup.close(); salvar(); irPara(dataDe(novaData));
+  const novaData = document.getElementById("fData").value || editandoChave;
+
+  // Recorrente editada: pergunta se a mudança vale só para este dia ou para todos
+  if (editando && ehRecorrente(editando) && cat === "recorrente") {
+    edicaoRec = { r: editando, chave: editandoChave, novaData, campos };
+    const mudouData = novaData !== editandoChave;
+    document.getElementById("editarRecTexto").textContent = `“${editando.texto}” — ` +
+      (mudouData ? `mudar de ${dataCurta(editandoChave)} para ${dataCurta(novaData)}` : `salvar as mudanças`) +
+      ` só no dia ${dataCurta(editandoChave)} ou em todas as repetições?`;
+    popupEditarRec.showModal();
     return;
   }
-  popup.close(); salvar(); desenhar();
+
+  let final = editando;
+  if (editando && ehRecorrente(editando) === (cat === "recorrente")) {
+    Object.assign(editando, campos);
+    // Reagendada para outro dia: sai do dia em que estava e entra no novo, com tudo o que tinha
+    if (novaData !== editandoChave) {
+      removerTarefa(editando, editandoChave);
+      diaDe(novaData).tarefas.push(editando);
+    }
+  } else {
+    // Nova, ou mudou entre recorrente e não recorrente: sai de um lugar e entra no outro
+    const t = editando ? { ...editando, ...campos } : { id: novoId(), ...campos, feita: false };
+    if (editando) removerTarefa(editando, editandoChave);
+    if (cat === "recorrente") { delete t.categoria; delete t.feita; t.feitas ??= {}; dados.recorrentes.push(t); }
+    else { delete t.inicio; delete t.fim; delete t.repete; delete t.feitas; diaDe(novaData).tarefas.push(t); }
+    final = t;
+  }
+  concluirEdicao(final, cat === "recorrente" ? chaveData(dataAtual) : novaData);
 }
-function removerTarefa(t) {
+const diaDe = chave => (dados.dias[chave] ??= { tarefas: [], anotacoes: [] });
+// Fecha o pop-up, salva e mostra a tarefa (vai para o dia dela se for outro)
+function concluirEdicao(t, chave) {
+  popup.close(); salvar();
+  const vista = chaveData(dataAtual);
+  if (chave === vista) { notaAberta = t.id; desenhar(); return; }
+  if (situacao(vista) === 0 && situacao(chave) < 0) { notaAberta = idNota(t, chave); desenhar(); return; } // fica em hoje, nas atrasadas
+  notaAberta = t.id; irPara(dataDe(chave));
+}
+const somarDias = (chave, n) => { const d = dataDe(chave); d.setDate(d.getDate() + n); return chaveData(d); };
+const diasEntre = (a, b) => Math.round((dataDe(b) - dataDe(a)) / 864e5);
+
+// Pop-up "Editar tarefa recorrente": Só este dia ou Todos
+const popupEditarRec = document.getElementById("popupEditarRec");
+let edicaoRec = null;
+document.getElementById("edRecCancelar").onclick = () => popupEditarRec.close();
+document.getElementById("edRecTodos").onclick = () => {
+  const { r, chave, novaData, campos } = edicaoRec;
+  // Mudou a data: a série inteira anda o mesmo número de dias (se o início não foi mudado à mão)
+  const delta = diasEntre(chave, novaData);
+  if (delta && campos.inicio === r.inicio) {
+    campos.inicio = somarDias(r.inicio, delta);
+    if (campos.fim && campos.fim === r.fim) campos.fim = somarDias(r.fim, delta);
+    // Feito, início/fim e dias excluídos andam junto, para continuarem na mesma repetição
+    for (const k of ["feitas", "execs", "excluidos"]) if (r[k])
+      r[k] = Object.fromEntries(Object.entries(r[k]).map(([c, v]) => [somarDias(c, delta), v]));
+  }
+  Object.assign(r, campos);
+  popupEditarRec.close();
+  concluirEdicao(r, ocorre(r, novaData) ? novaData : chaveData(dataAtual));
+};
+document.getElementById("edRecDia").onclick = () => {
+  // Este dia sai da série e vira uma tarefa comum no dia escolhido, com as anotações, o feito e o início/fim
+  const { r, chave, novaData, campos } = edicaoRec;
+  (r.excluidos ??= {})[chave] = true;
+  const t = { id: novoId(), texto: campos.texto, hora: campos.hora, tipo: campos.tipo, cor: campos.cor,
+    notaHtml: campos.notaHtml, categoria: "tarefa", feita: !!r.feitas?.[chave], origemRec: r.id };
+  if (r.execs?.[chave]) t.exec = r.execs[chave];
+  diaDe(novaData).tarefas.push(t);
+  popupEditarRec.close();
+  concluirEdicao(t, novaData);
+};
+function removerTarefa(t, chave = chaveData(dataAtual)) {
   if (ehRecorrente(t)) dados.recorrentes.splice(dados.recorrentes.indexOf(t), 1);
-  else dia().tarefas = dia().tarefas.filter(x => x !== t);
+  else if (dados.dias[chave]) dados.dias[chave].tarefas = dados.dias[chave].tarefas.filter(x => x !== t);
 }
 document.querySelector("#form .salvar").onclick = salvarTarefa;
 // Enter nos campos também salva
@@ -996,8 +1120,8 @@ document.querySelector("#form .salvar").onclick = salvarTarefa;
 document.getElementById("fCancelar").onclick = () => popup.close();
 document.getElementById("fApagar").onclick = () => {
   popup.close();
-  if (ehRecorrente(editando)) { perguntarExcluirRec(editando, chaveData(dataAtual)); return; }
-  removerTarefa(editando);
+  if (ehRecorrente(editando)) { perguntarExcluirRec(editando, editandoChave); return; }
+  removerTarefa(editando, editandoChave);
   salvar(); desenhar();
 };
 // Excluir recorrente: só o dia escolhido (fica marcado em "excluidos") ou todas as repetições
