@@ -129,6 +129,8 @@
   .tarefa.atrasada .texto, .tarefa.atrasada .hora { color: var(--late); font-weight: 600; }
   /* Linha do "agora" entre as tarefas */
   .agora { display: flex; align-items: center; gap: 8px; color: var(--now); font-size: .8rem; font-weight: 600; padding: 2px 8px; }
+  .divisoria { display: flex; align-items: center; gap: 10px; color: var(--muted); font-size: .85rem; font-weight: 700; padding: 14px 8px 6px; }
+  .divisoria::before, .divisoria::after { content: ""; flex: 1; height: 2px; background: var(--muted); opacity: .45; border-radius: 2px; }
   .agora::after { content: ""; flex: 1; height: 2px; background: var(--now); border-radius: 2px; }
   .vazio { color: var(--muted); text-align: center; padding: 32px 16px; }
 
@@ -376,7 +378,7 @@
 
   <section class="painel ativo" id="tarefas">
     <div class="topo-tarefas">
-      <h2>Tarefas do dia</h2>
+      <h2>Anotações do Dia</h2>
       <div class="botoes-topo">
         <button class="btn" id="novaNota">+ Anotação</button>
         <button class="btn principal" id="novaTarefa">+ Tarefa</button>
@@ -711,6 +713,20 @@ function desenhar() {
     li.append(icone, texto, excluir);
     li.onclick = () => abrirNota(n);
     lista.append(li);
+  }
+
+  // Linha divisória entre as anotações (acima) e as tarefas (abaixo)
+  if (tarefas.length || d.anotacoes.length) {
+    const div = document.createElement("li");
+    div.className = "divisoria";
+    div.textContent = "Tarefas do Dia";
+    lista.append(div);
+    if (!tarefas.length) {
+      const li = document.createElement("li");
+      li.className = "vazio"; li.style.padding = "12px 16px";
+      li.textContent = "Nenhuma tarefa neste dia.";
+      lista.append(li);
+    }
   }
 
   // A linha do "agora" entra antes da primeira tarefa com horário depois de agora
