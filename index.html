@@ -1091,6 +1091,9 @@ document.getElementById("edRecTodos").onclick = () => {
   if (delta && campos.inicio === r.inicio) {
     campos.inicio = somarDias(r.inicio, delta);
     if (campos.fim && campos.fim === r.fim) campos.fim = somarDias(r.fim, delta);
+    // Feito, início/fim e dias excluídos andam junto, para continuarem na mesma repetição
+    for (const k of ["feitas", "execs", "excluidos"]) if (r[k])
+      r[k] = Object.fromEntries(Object.entries(r[k]).map(([c, v]) => [somarDias(c, delta), v]));
   }
   Object.assign(r, campos);
   popupEditarRec.close();
