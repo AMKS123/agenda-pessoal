@@ -692,11 +692,11 @@ function tarefasDoDia(chave) {
 // vai para reunioes/{id} na nuvem. O convidado vê pela nuvem: primeiro o convite (Aceitar / Recusar);
 // depois de aceitar, a reunião aparece na agenda dele com as anotações (só quem criou edita ou apaga).
 // Na nuvem: { dono, donoNome, convidado, data, texto, hora, tipo, cor, notaHtml, respostas: { email: "aceita" | "recusada" }, feitas: { email: true } }
-const compart = { email: "", ativo: false, recebidas: [], donas: {} }; // preenchido pela parte da nuvem (lá embaixo)
+const compart = { email: "", ativo: false, recebidas: [], donas: {}, usuarios: [] }; // usuarios: [{ email, nome }] de perfis/ na nuvem // preenchido pela parte da nuvem (lá embaixo)
 window.compart = compart;
 const respostaDe = r => r.respostas?.[r.convidado] || "pendente";
 window.respostaDe = respostaDe;
-const nomeCurto = email => (email || "").split("@")[0];
+const nomeCurto = email => (compart.usuarios.find(u => u.email === email)?.nome || "").split(" ")[0] || (email || "").split("@")[0];
 const nomeDono = r => (r.donoNome || "").split(" ")[0] || nomeCurto(r.dono);
 // Reuniões em que fui convidado e aceitei, como tarefas (só leitura) daquele dia
 function reunioesAceitas(chave) {
@@ -1152,10 +1152,13 @@ function abrirPopup(tarefa = null, chave = chaveData(dataAtual)) {
 // Campo "Convidar" (só Reunião): ninguém, um e-mail já usado, ou um novo
 const fConvidado = document.getElementById("fConvidado");
 const fNovoConvidado = document.getElementById("fNovoConvidado");
+// A lista vem dos usuários do site (cada pessoa liberada que já entrou na agenda) e de e-mails já usados
 function preencherConvidados(atual) {
-  const emails = [...new Set([...dados.contatos, atual].filter(e => e && e !== compart.email))];
+  const nomes = Object.fromEntries(compart.usuarios.map(u => [u.email, u.nome]));
+  const emails = [...new Set([...compart.usuarios.map(u => u.email), ...dados.contatos, atual].filter(e => e && e !== compart.email))];
+  const rotulo = e => nomes[e] ? `${nomes[e]} (${e})` : e;
   fConvidado.innerHTML = `<option value="">Ninguém (só na minha agenda)</option>` +
-    emails.map(e => `<option value="${e.replace(/"/g, "")}">${escapar(e)}</option>`).join("") +
+    emails.map(e => `<option value="${e.replace(/"/g, "")}">${escapar(rotulo(e))}</option>`).join("") +
     `<option value="__novo">+ Outro e-mail…</option>`;
   fConvidado.value = atual;
   fNovoConvidado.value = "";
@@ -1939,7 +1942,7 @@ async function iniciar() {
   onAuthStateChanged(auth, async u => {
     pararDeOuvir.forEach(parar => parar());
     pararDeOuvir = []; enviados = {}; usuario = u; semAcesso = false;
-    Object.assign(compart, { email: u?.email?.toLowerCase() || "", ativo: false, recebidas: [], donas: {} });
+    Object.assign(compart, { email: u?.email?.toLowerCase() || "", ativo: false, recebidas: [], donas: {}, usuarios: [] });
     if (!u) { status("Entrar", "Entrar com Google para salvar na nuvem e sincronizar entre aparelhos"); return; }
 
     status("Sincronizando…");
@@ -1990,8 +1993,20 @@ async function iniciar() {
       salvar(); redesenhar();
     }, e => console.error(e)));
     mostrarConectado();
+    iniciarPerfis(u);
     iniciarCompartilhadas(u);
   });
+
+  // ----- Usuários do site (perfis/{email}): cada pessoa liberada se registra ao entrar, para aparecer no "Convidar" -----
+  function iniciarPerfis(u) {
+    const email = compart.email;
+    setDoc(doc(db, "perfis", email), { email, nome: u.displayName || "" }, { merge: true })
+      .catch(e => console.warn("Lista de usuários indisponível (regras do Firestore sem perfis?)", e));
+    pararDeOuvir.push(onSnapshot(collection(db, "perfis"), s => {
+      compart.usuarios = s.docs.map(d => ({ email: d.id, nome: d.data().nome || "" }));
+      if (popup.open) { const v = fConvidado.value, novo = fNovoConvidado.value; preencherConvidados(v === "__novo" ? "" : v); if (v === "__novo") { fConvidado.value = v; fNovoConvidado.value = novo; mostrarNovoConvidado(); } }
+    }, e => console.warn(e)));
+  }
 
   // ----- Reuniões compartilhadas (coleção reunioes/{id}, ver "Reuniões compartilhadas" no outro script) -----
   // Se as regras novas do Firestore ainda não foram publicadas, só esta parte fica desligada; o resto funciona.

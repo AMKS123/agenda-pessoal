@@ -37,7 +37,8 @@ Sem convidado, a reunião fica só na sua agenda, como antes.
 - Aceitou: a reunião aparece na agenda dele, com as anotações, que se atualizam sozinhas. Ele pode marcar como feita (só para ele) ou clicar em "Não vou participar".
 - Só quem criou edita (texto, data, hora, anotações) e apaga. Apagar a reunião, ou tirar o convidado, some com ela para o convidado também.
 - Quem criou vê na linha da reunião a resposta: ⏳ aguardando, ✓ confirmou, ✗ recusou.
-- Os e-mails já usados ficam guardados na sua lista de convidados (e quem te convidou entra nela também).
+- O campo **Convidar** já lista as pessoas do site: cada pessoa liberada aparece ali depois de entrar na agenda pelo menos uma vez (o site grava o nome e o e-mail dela em `perfis/{email}`). Você não aparece na sua própria lista.
+- E-mails já usados também ficam na lista; "+ Outro e-mail…" continua disponível para casos especiais.
 
 Na nuvem, cada reunião compartilhada fica em `reunioes/{id}` (os dados pessoais continuam em `usuarios/{uid}`).
-Isso precisa da parte `match /reunioes/{id}` das regras (ver [`firestore.rules`](firestore.rules)). Sem ela, o resto da agenda funciona normalmente; só o convite não é enviado.
+Isso precisa das partes `match /perfis/{id}` e `match /reunioes/{id}` das regras (ver [`firestore.rules`](firestore.rules)). Sem ela, o resto da agenda funciona normalmente; só o convite não é enviado.

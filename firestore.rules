@@ -32,6 +32,13 @@ service cloud.firestore {
       allow read, write: if liberado() && request.auth.uid == uid;
     }
 
+    // Usuários do site: cada pessoa liberada grava só o próprio perfil (nome e e-mail),
+    // e todos os liberados leem a lista (é ela que aparece no campo "Convidar").
+    match /perfis/{id} {
+      allow read: if liberado();
+      allow write: if liberado() && id == email();
+    }
+
     // Reuniões compartilhadas: quem criou (dono) e o convidado leem.
     // Só quem criou cria, muda e apaga; o convidado só grava a resposta (aceita/recusada) e o próprio "feito".
     match /reunioes/{id} {
