@@ -585,7 +585,7 @@
       <div class="cores-postit" id="coresPostit"></div>
     </div>
     <div class="campo">
-      <label>Anotações</label>
+      <label>Descrição</label>
       <div id="fNotaTarefa" class="editor pequeno" contenteditable="true" role="textbox" aria-multiline="true" data-placeholder="Opcional"></div>
     </div>
     <p id="erroForm"></p>
@@ -900,7 +900,7 @@ function desenhar() {
 function linhaTarefa(t, chave, ehAtrasada = false) {
   const li = document.createElement("li");
   li.className = "tarefa" + (t.feita ? " feita" : "") + (atrasada(t, chave) ? " atrasada" : "") + (idNota(t, chave) === notaAberta ? " aberta" : "");
-  li.title = "Clique para abrir as anotações";
+  li.title = "Clique para abrir a descrição";
 
   const check = document.createElement("input");
   check.type = "checkbox";
@@ -1066,7 +1066,7 @@ function desenharNota() {
     sair.onclick = () => { notaAberta = null; responderConvite(r, "recusada"); };
     info.append(sair);
     const corpo = document.createElement("div");
-    corpo.className = "editor"; corpo.innerHTML = r.notaHtml ? limparHtml(r.notaHtml) : `<p class="vazio">Sem anotações ainda.</p>`; // veio de outra pessoa: só o HTML permitido
+    corpo.className = "editor"; corpo.innerHTML = r.notaHtml ? limparHtml(r.notaHtml) : `<p class="vazio">Sem descrição ainda.</p>`; // veio de outra pessoa: só o HTML permitido
     vista.append(info, corpo);
     return;
   }
@@ -1083,7 +1083,7 @@ function desenharNota() {
     ed.addEventListener("input", () => { original[campo] = limparHtml(ed.innerHTML); salvar(); });
     vista.append(barraFerramentas(ed), ed);
   };
-  area("", "notaHtml", "Escreva as anotações desta tarefa...");
+  area("", "notaHtml", "Escreva a descrição desta tarefa...");
 }
 // Editor com negrito e cores; colar entra como texto simples
 function criarEditor(html, dica) {
@@ -1171,7 +1171,7 @@ function mostrarNovoConvidado() {
   fNovoConvidado.style.display = fConvidado.value === "__novo" ? "" : "none";
   document.getElementById("dicaConvidado").textContent = !compart.email
     ? "Para convidar, entre com Google (botão ☁ no topo)."
-    : fConvidado.value ? "A pessoa recebe um convite e, ao aceitar, vê a reunião e as anotações. Só você edita." : "";
+    : fConvidado.value ? "A pessoa recebe um convite e, ao aceitar, vê a reunião e a descrição. Só você edita." : "";
 }
 fConvidado.onchange = () => { mostrarNovoConvidado(); if (fConvidado.value === "__novo") fNovoConvidado.focus(); };
 
