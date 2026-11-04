@@ -2,27 +2,54 @@
 // Este arquivo é só uma cópia de referência: as regras valem quando são coladas no
 // Console do Firebase > Firestore Database > Regras > Publicar.
 //
-// Quem pode usar a nuvem: só os e-mails da lista abaixo.
+// Quem pode usar a nuvem: só os e-mails da lista em emails().
 // Qualquer pessoa consegue "Entrar com Google" no site, mas quem não está na lista
 // não lê nem grava nada (o app mostra "Sem acesso" e os dados ficam só no aparelho).
 // Para liberar outra pessoa: acrescente o e-mail dela na lista (entre aspas simples,
-// separado por vírgula), clique em Publicar. Cada pessoa continua vendo só os próprios dados.
+// separado por vírgula, em minúsculas), clique em Publicar. Cada pessoa continua vendo
+// só os próprios dados; só as reuniões compartilhadas são vistas pelos dois.
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
+    function emails() {
+      return [
+        'seu-email@gmail.com'
+        // , 'email-do-amigo@gmail.com'
+      ];
+    }
+    function email() {
+      return request.auth.token.email.lower();
+    }
     function liberado() {
       return request.auth != null
         && request.auth.token.email_verified == true
-        && request.auth.token.email.lower() in [
-          'seu-email@gmail.com'
-          // , 'email-do-amigo@gmail.com'
-        ];
+        && email() in emails();
     }
 
     // Cada pessoa só mexe na própria pasta usuarios/{uid}
     match /usuarios/{uid}/{document=**} {
       allow read, write: if liberado() && request.auth.uid == uid;
+    }
+
+    // Reuniões compartilhadas: quem criou (dono) e o convidado leem.
+    // Só quem criou cria, muda e apaga; o convidado só grava a resposta (aceita/recusada) e o próprio "feito".
+    match /reunioes/{id} {
+      allow read: if liberado()
+        && (resource.data.dono == email() || resource.data.convidado == email());
+      allow create: if liberado()
+        && request.resource.data.dono == email()
+        && request.resource.data.convidado in emails()
+        && request.resource.data.convidado != email();
+      allow update: if liberado() && (
+        (resource.data.dono == email()
+          && request.resource.data.dono == email()
+          && request.resource.data.convidado in emails()
+          && request.resource.data.convidado != email())
+        || (resource.data.convidado == email()
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['respostas', 'feitas']))
+      );
+      allow delete: if liberado() && resource.data.dono == email();
     }
   }
 }
