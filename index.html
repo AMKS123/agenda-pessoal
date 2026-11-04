@@ -1063,7 +1063,7 @@ function desenharNota() {
     sair.onclick = () => { notaAberta = null; responderConvite(r, "recusada"); };
     info.append(sair);
     const corpo = document.createElement("div");
-    corpo.className = "editor"; corpo.innerHTML = r.notaHtml || `<p class="vazio">Sem anotações ainda.</p>`;
+    corpo.className = "editor"; corpo.innerHTML = r.notaHtml ? limparHtml(r.notaHtml) : `<p class="vazio">Sem anotações ainda.</p>`; // veio de outra pessoa: só o HTML permitido
     vista.append(info, corpo);
     return;
   }
@@ -1738,14 +1738,17 @@ fItem.onpaste = colarTexto;
 // Guarda só negrito, cor e quebras de linha; remove todo o resto
 const COR_PADRAO = "#010203";
 function limparHtml(html) {
-  const origem = document.createElement("div");
-  origem.innerHTML = html;
+  // <template> lê o HTML sem executar nada (imagens e onerror não rodam); só negrito, cor e tamanho passam
+  const modelo = document.createElement("template");
+  modelo.innerHTML = html;
+  const origem = modelo.content;
   const destino = document.createElement("div");
   const copiar = (de, para) => {
     for (const no of de.childNodes) {
       if (no.nodeType === Node.TEXT_NODE) { para.append(no.textContent); continue; }
       if (no.nodeType !== Node.ELEMENT_NODE) continue;
       const tag = no.tagName;
+      if (tag === "SCRIPT" || tag === "STYLE") continue;
       if (tag === "BR") { para.append(document.createElement("br")); continue; }
       let alvo = para;
       if (tag === "DIV" || tag === "P") { alvo = document.createElement("div"); para.append(alvo); }
