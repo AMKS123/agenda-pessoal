@@ -28,3 +28,16 @@ Assim ninguém de fora gasta a cota gratuita do Firebase.
 
 Cada pessoa liberada tem seus próprios dados (pasta `usuarios/{uid}`); ninguém vê a agenda do outro.
 Se a pessoa for usar muito, lembre que todos dividem a mesma cota gratuita do projeto.
+
+## Reuniões compartilhadas
+Ao criar uma **Reunião**, o campo **Convidar** permite escolher uma pessoa (precisa estar na lista de e-mails liberados).
+Sem convidado, a reunião fica só na sua agenda, como antes.
+
+- O convidado vê o convite em **Convites de Reunião** (no dia de hoje e no dia da reunião) e escolhe **Aceitar** ou **Recusar**.
+- Aceitou: a reunião aparece na agenda dele, com as anotações, que se atualizam sozinhas. Ele pode marcar como feita (só para ele) ou clicar em "Não vou participar".
+- Só quem criou edita (texto, data, hora, anotações) e apaga. Apagar a reunião, ou tirar o convidado, some com ela para o convidado também.
+- Quem criou vê na linha da reunião a resposta: ⏳ aguardando, ✓ confirmou, ✗ recusou.
+- Os e-mails já usados ficam guardados na sua lista de convidados (e quem te convidou entra nela também).
+
+Na nuvem, cada reunião compartilhada fica em `reunioes/{id}` (os dados pessoais continuam em `usuarios/{uid}`).
+Isso precisa da parte `match /reunioes/{id}` das regras (ver [`firestore.rules`](firestore.rules)). Sem ela, o resto da agenda funciona normalmente; só o convite não é enviado.

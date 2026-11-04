@@ -143,7 +143,7 @@
   dialog h3 { margin: 0 0 16px; }
   dialog label { display: block; font-size: .85rem; color: var(--muted); margin-bottom: 4px; }
   dialog .campo { margin-bottom: 14px; }
-  dialog input[type=time], dialog input[type=text], dialog input[type=date], dialog select {
+  dialog input[type=time], dialog input[type=text], dialog input[type=email], dialog input[type=date], dialog select {
     width: 100%; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg);
   }
   .opcoes-tipo { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
@@ -153,6 +153,19 @@
   #popup { width: min(520px, calc(100vw - 32px)); max-height: calc(100vh - 32px); overflow: auto; }
   .linha-rec { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
   .linha-rec label { font-size: .8rem; }
+  #form:not([data-cat=reuniao]) .so-reuniao { display: none; }
+  .dica-campo { display: block; color: var(--muted); font-size: .8rem; margin-top: 4px; }
+  /* Reuniões compartilhadas */
+  .tarefa .convite-tag { font-size: .75rem; margin-left: 8px; padding: 1px 6px; border-radius: 6px; background: var(--chip-fixa); color: var(--chip-ink); white-space: nowrap; display: inline-block; text-decoration: none; }
+  .tarefa .convite-tag.aceita { background: #a5d6a7; color: #1f3b20; }
+  .tarefa .convite-tag.recusada { background: #ef9a9a; color: #4a1515; }
+  .tarefa.convite { flex-wrap: wrap; }
+  .tarefa.convite .acoes-convite { display: flex; gap: 6px; margin-left: auto; }
+  .tarefa.convite .acoes-convite .btn { padding: 4px 10px; font-size: .85rem; }
+  @media (max-width: 700px) { .tarefa.convite .acoes-convite { grid-column: 1 / -1; justify-content: flex-end; } }
+  .divisoria.convites { color: var(--accent); }
+  .divisoria.convites::before, .divisoria.convites::after { background: var(--accent); }
+  .nota-compartilhada { color: var(--muted); font-size: .85rem; margin: 0 0 8px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
   #form:not([data-cat=recorrente]) .so-recorrente, #form[data-cat=recorrente]:not([data-edita-rec]) .nao-recorrente { display: none; }
   .divisoria.atrasadas { color: var(--late); }
   .divisoria.atrasadas::before, .divisoria.atrasadas::after { background: var(--late); }
@@ -551,6 +564,12 @@
           <option value="anual">Anual</option>
         </select></div>
     </div>
+    <div class="campo so-reuniao">
+      <label for="fConvidado">Convidar (opcional)</label>
+      <select id="fConvidado"></select>
+      <input type="email" id="fNovoConvidado" placeholder="e-mail da pessoa (precisa estar liberado na nuvem)" autocomplete="off" style="display:none;margin-top:6px">
+      <small id="dicaConvidado" class="dica-campo"></small>
+    </div>
     <div class="campo">
       <label>Tipo de horário</label>
       <div class="opcoes-tipo">
@@ -583,7 +602,7 @@ const ALTURA_CHIP = 18;          // altura aproximada de cada tarefa dentro do d
 // ================= Dados (salvos no navegador) =================
 // Formato: { config: { tema }, dias: { "2026-10-30": { tarefas: [...], anotacoes: [...] } } }
 // Tarefa: { id, hora: "08:00" ou "", texto, tipo: "fixa" | "movel", feita }
-//   categoria: "tarefa" | "reuniao"; notaHtml = anotações
+//   categoria: "tarefa" | "reuniao"; notaHtml = anotações; convidado = e-mail (reunião compartilhada, opcional)
 // Anotação do dia: { id, titulo, texto, html }
 // Recorrentes (ficam fora dos dias): { id, texto, hora, tipo, cor, inicio, fim, repete, notaHtml, feitas: { "2026-10-30": true }, excluidos: { "2026-11-02": true } }
 const CHAVE = "agenda-pessoal:v1";
@@ -597,6 +616,7 @@ const escapar = t => t.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g
 for (const item of dados.lista) item.html ??= escapar(item.texto || "");
 dados.config.modo ??= "agenda";
 dados.recorrentes ??= [];
+dados.contatos ??= []; // e-mails de quem já foi convidado para reuniões (ou convidou você), em minúsculas
 
 // Converte o formato antigo (fixas + variáveis) para a lista única de tarefas
 for (const d of Object.values(dados.dias)) {
@@ -664,7 +684,78 @@ const dataDe = chave => { const [a, m, d] = chave.split("-").map(Number); return
 function tarefasDoDia(chave) {
   const recs = dados.recorrentes.filter(r => ocorre(r, chave))
     .map(r => ({ ...r, categoria: "recorrente", feita: !!r.feitas?.[chave], rec: r }));
-  return [...(dados.dias[chave]?.tarefas || []), ...recs];
+  return [...(dados.dias[chave]?.tarefas || []), ...recs, ...reunioesAceitas(chave)];
+}
+
+// ================= Reuniões compartilhadas =================
+// Reunião com convidado: continua guardada no dia de quem criou (campo convidado = e-mail) e uma cópia
+// vai para reunioes/{id} na nuvem. O convidado vê pela nuvem: primeiro o convite (Aceitar / Recusar);
+// depois de aceitar, a reunião aparece na agenda dele com as anotações (só quem criou edita ou apaga).
+// Na nuvem: { dono, donoNome, convidado, data, texto, hora, tipo, cor, notaHtml, respostas: { email: "aceita" | "recusada" }, feitas: { email: true } }
+const compart = { email: "", ativo: false, recebidas: [], donas: {} }; // preenchido pela parte da nuvem (lá embaixo)
+window.compart = compart;
+const respostaDe = r => r.respostas?.[r.convidado] || "pendente";
+window.respostaDe = respostaDe;
+const nomeCurto = email => (email || "").split("@")[0];
+const nomeDono = r => (r.donoNome || "").split(" ")[0] || nomeCurto(r.dono);
+// Reuniões em que fui convidado e aceitei, como tarefas (só leitura) daquele dia
+function reunioesAceitas(chave) {
+  return compart.recebidas.filter(r => r.data === chave && respostaDe(r) === "aceita").map(r => ({
+    id: r.id, texto: r.texto, hora: r.hora || "", tipo: r.tipo || "fixa", cor: r.cor || "", notaHtml: r.notaHtml || "",
+    categoria: "reuniao", feita: !!r.feitas?.[compart.email], compartilhada: r,
+  }));
+}
+const convitesPendentes = () => compart.recebidas.filter(r => respostaDe(r) === "pendente")
+  .sort((a, b) => a.data < b.data ? -1 : a.data > b.data ? 1 : (a.hora || "") < (b.hora || "") ? -1 : 1);
+function responderConvite(r, resposta) {
+  r.respostas = { ...r.respostas, [compart.email]: resposta }; // já mostra; a nuvem confirma em seguida
+  window.nuvemResponder?.(r, resposta);
+  desenhar();
+}
+// Linha de convite: Aceitar / Recusar
+function linhaConvite(r) {
+  const li = document.createElement("li");
+  li.className = "tarefa convite";
+  li.style.cursor = "default";
+  const icone = document.createElement("span");
+  icone.textContent = "✉"; icone.style.textAlign = "center";
+  const hora = document.createElement("span");
+  hora.className = "hora" + (r.hora ? "" : " vazia");
+  hora.textContent = r.hora || "—";
+  const texto = document.createElement("span");
+  texto.className = "texto";
+  texto.textContent = "👥 " + r.texto;
+  const dia = document.createElement("span");
+  dia.className = "dia-orig"; dia.style.color = "var(--accent)"; dia.textContent = dataCurta(r.data).slice(0, 5);
+  texto.prepend(dia);
+  const de = document.createElement("span");
+  de.className = "convite-tag"; de.textContent = "de " + nomeDono(r); de.title = r.dono;
+  texto.append(de);
+  const acoes = document.createElement("span");
+  acoes.className = "acoes-convite";
+  const aceitar = document.createElement("button");
+  aceitar.className = "btn principal"; aceitar.textContent = "Aceitar";
+  aceitar.onclick = () => responderConvite(r, "aceita");
+  const recusar = document.createElement("button");
+  recusar.className = "btn"; recusar.textContent = "Recusar";
+  recusar.onclick = () => responderConvite(r, "recusada");
+  acoes.append(aceitar, recusar);
+  li.append(icone, hora, texto, document.createElement("span"), acoes);
+  return li;
+}
+// Etiqueta na linha da reunião: para quem criou, a resposta do convidado; para o convidado, quem convidou
+function etiquetaReuniao(t) {
+  if (!t.convidado && !t.compartilhada) return null;
+  const sp = document.createElement("span");
+  if (t.compartilhada) {
+    sp.className = "convite-tag aceita"; sp.textContent = "de " + nomeDono(t.compartilhada); sp.title = t.compartilhada.dono;
+    return sp;
+  }
+  const resp = compart.donas[t.id] || "pendente";
+  sp.className = "convite-tag " + resp;
+  sp.textContent = nomeCurto(t.convidado) + (resp === "aceita" ? " ✓" : resp === "recusada" ? " ✗ recusou" : " ⏳");
+  sp.title = t.convidado + (resp === "aceita" ? ": confirmou" : resp === "recusada" ? ": recusou" : ": ainda não respondeu");
+  return sp;
 }
 // Tarefas Atrasadas: o que não foi feito em dias passados aparece em hoje, até ser marcado.
 // A tarefa continua guardada no dia original (o histórico não muda); só é mostrada de novo em hoje.
@@ -725,8 +816,10 @@ function desenhar() {
   const tarefas = ordenar(tarefasDoDia(chave));
 
   const atrasadas = situacao(chave) === 0 ? tarefasAtrasadas() : [];
+  // Convites de reunião ainda sem resposta: todos aparecem em hoje, e cada um também no dia da reunião
+  const convites = convitesPendentes().filter(r => situacao(chave) === 0 || r.data === chave);
 
-  if (!tarefas.length && !d.anotacoes.length && !atrasadas.length) {
+  if (!tarefas.length && !d.anotacoes.length && !atrasadas.length && !convites.length) {
     const li = document.createElement("li");
     li.className = "vazio";
     li.textContent = "Nada neste dia. Use “+ Tarefa” ou “+ Anotação”.";
@@ -758,6 +851,11 @@ function desenhar() {
     lista.append(div);
   };
 
+  if (convites.length) {
+    divisoria("Convites de Reunião", "convites");
+    for (const r of convites) lista.append(linhaConvite(r));
+  }
+
   // Tarefas Atrasadas (só em hoje): o que ficou sem fazer nos dias anteriores
   if (atrasadas.length) {
     divisoria("Tarefas Atrasadas", "atrasadas");
@@ -765,7 +863,7 @@ function desenhar() {
   }
 
   // Linha divisória entre as anotações (acima) e as tarefas (abaixo)
-  if (tarefas.length || d.anotacoes.length || atrasadas.length) {
+  if (tarefas.length || d.anotacoes.length || atrasadas.length || convites.length) {
     divisoria("Tarefas do Dia");
     if (!tarefas.length) {
       const li = document.createElement("li");
@@ -807,6 +905,11 @@ function linhaTarefa(t, chave, ehAtrasada = false) {
   check.title = "Marcar como feita";
   check.onclick = e => e.stopPropagation(); // marcar não abre o pop-up
   check.onchange = () => {
+    if (t.compartilhada) { // reunião de outra pessoa: o "feito" é só meu, guardado na nuvem
+      (t.compartilhada.feitas ??= {})[compart.email] = check.checked;
+      window.nuvemMarcarFeita?.(t.compartilhada, check.checked);
+      desenhar(); return;
+    }
     if (t.rec) (t.rec.feitas ??= {})[chave] = check.checked; // recorrente: só neste dia
     else t.feita = check.checked;
     if (!check.checked) guardarExecucao(t, chave, null); // desmarcou: apaga o início/fim anotado
@@ -829,6 +932,8 @@ function linhaTarefa(t, chave, ehAtrasada = false) {
     sp.textContent = `${ex.ini || ""}–${ex.fim || ""}`;
     texto.prepend(sp);
   }
+  const etiqueta = etiquetaReuniao(t);
+  if (etiqueta) texto.append(etiqueta);
   if (ehAtrasada) { // dia em que a tarefa deveria ter sido feita
     const sp = document.createElement("span");
     sp.className = "dia-orig"; sp.title = "Dia original da tarefa";
@@ -841,7 +946,9 @@ function linhaTarefa(t, chave, ehAtrasada = false) {
   tipo.textContent = t.tipo === "movel" ? "móvel" : "fixo";
 
   let excluir;
-  if (t.rec) { // recorrente: pergunta se exclui só este dia ou todos
+  if (t.compartilhada) { // só quem criou pode apagar
+    excluir = document.createElement("span");
+  } else if (t.rec) { // recorrente: pergunta se exclui só este dia ou todos
     excluir = document.createElement("button");
     excluir.className = "excluir"; excluir.textContent = "🗑"; excluir.title = "Excluir";
     excluir.onclick = e => { e.stopPropagation(); perguntarExcluirRec(t.rec, chave); };
@@ -945,6 +1052,29 @@ function desenharNota() {
   // Tarefa: as anotações são editadas direto aqui e salvas sozinhas
   const original = n.rec || n;
   h3.textContent = (ICONE_CATEGORIA[n.categoria] ? ICONE_CATEGORIA[n.categoria] + " " : "") + data + (n.hora ? n.hora + " · " : "") + n.texto;
+  if (n.compartilhada) { // reunião de outra pessoa: só leitura (só quem criou edita), atualiza sozinha
+    const r = n.compartilhada;
+    document.getElementById("editarNota").style.display = "none";
+    const info = document.createElement("p");
+    info.className = "nota-compartilhada";
+    info.textContent = `Reunião de ${nomeDono(r)} (${r.dono}). Só quem criou pode editar.`;
+    const sair = document.createElement("button");
+    sair.className = "btn"; sair.textContent = "Não vou participar"; sair.style.padding = "2px 10px";
+    sair.onclick = () => { notaAberta = null; responderConvite(r, "recusada"); };
+    info.append(sair);
+    const corpo = document.createElement("div");
+    corpo.className = "editor"; corpo.innerHTML = r.notaHtml || `<p class="vazio">Sem anotações ainda.</p>`;
+    vista.append(info, corpo);
+    return;
+  }
+  if (n.convidado) { // reunião minha compartilhada: mostra com quem e a resposta
+    const resp = compart.donas[n.id] || "pendente";
+    const info = document.createElement("p");
+    info.className = "nota-compartilhada";
+    info.textContent = `Compartilhada com ${n.convidado}: ` + (resp === "aceita" ? "confirmou ✓" : resp === "recusada" ? "recusou ✗" : "aguardando resposta ⏳") +
+      (compart.ativo ? "" : " (nuvem desligada: entre com Google para enviar o convite)");
+    vista.append(info);
+  }
   const area = (rotulo, campo, dica) => {
     const ed = criarEditor(original[campo] || "", dica);
     ed.addEventListener("input", () => { original[campo] = limparHtml(ed.innerHTML); salvar(); });
@@ -971,6 +1101,7 @@ const editarNotaAberta = () => {
   const atual = notaAtual();
   if (!atual) return;
   const { n, chave } = atual;
+  if (n.compartilhada) return; // reunião de outra pessoa: só leitura
   if (n.html !== undefined) abrirItem(n, "dia"); else abrirPopup(n.rec || n, chave);
 };
 document.getElementById("editarNota").onclick = editarNotaAberta;
@@ -1009,6 +1140,7 @@ function abrirPopup(tarefa = null, chave = chaveData(dataAtual)) {
   document.getElementById("fFim").value = tarefa?.fim || "";
   document.getElementById("fRepete").value = tarefa?.repete || "semanal";
   fNotaTarefa.innerHTML = tarefa?.notaHtml || "";
+  preencherConvidados(tarefa?.convidado || "");
   document.querySelector(`input[name=tipo][value=${tarefa?.tipo || "fixa"}]`).checked = true;
   document.querySelector(`input[name=cor][value="${tarefa?.cor || ""}"]`).checked = true;
   document.getElementById("fApagar").style.display = tarefa ? "" : "none";
@@ -1016,6 +1148,26 @@ function abrirPopup(tarefa = null, chave = chaveData(dataAtual)) {
   popup.showModal();
   fTexto.focus();
 }
+
+// Campo "Convidar" (só Reunião): ninguém, um e-mail já usado, ou um novo
+const fConvidado = document.getElementById("fConvidado");
+const fNovoConvidado = document.getElementById("fNovoConvidado");
+function preencherConvidados(atual) {
+  const emails = [...new Set([...dados.contatos, atual].filter(e => e && e !== compart.email))];
+  fConvidado.innerHTML = `<option value="">Ninguém (só na minha agenda)</option>` +
+    emails.map(e => `<option value="${e.replace(/"/g, "")}">${escapar(e)}</option>`).join("") +
+    `<option value="__novo">+ Outro e-mail…</option>`;
+  fConvidado.value = atual;
+  fNovoConvidado.value = "";
+  mostrarNovoConvidado();
+}
+function mostrarNovoConvidado() {
+  fNovoConvidado.style.display = fConvidado.value === "__novo" ? "" : "none";
+  document.getElementById("dicaConvidado").textContent = !compart.email
+    ? "Para convidar, entre com Google (botão ☁ no topo)."
+    : fConvidado.value ? "A pessoa recebe um convite e, ao aceitar, vê a reunião e as anotações. Só você edita." : "";
+}
+fConvidado.onchange = () => { mostrarNovoConvidado(); if (fConvidado.value === "__novo") fNovoConvidado.focus(); };
 
 // O Salvar não usa "envio de formulário": alguns visualizadores bloqueiam isso e o botão parecia não fazer nada
 function salvarTarefa() {
@@ -1031,11 +1183,19 @@ function salvarTarefa() {
   if (tipo === "fixa" && !hora) { erroForm.textContent = "Horário fixo precisa de horário."; fHora.focus(); return; }
   if (cat === "recorrente" && !inicio) { erroForm.textContent = "Escolha a data de início."; return; }
   if (cat === "recorrente" && fim && fim < inicio) { erroForm.textContent = "O fim tem que ser depois do início."; return; }
+  let convidado = cat === "reuniao" ? fConvidado.value : "";
+  if (convidado === "__novo") convidado = fNovoConvidado.value.trim().toLowerCase();
+  if (convidado) {
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(convidado)) { erroForm.textContent = "E-mail do convidado inválido."; fNovoConvidado.focus(); return; }
+    if (!compart.email) { erroForm.textContent = "Para convidar, entre com Google (botão ☁ no topo)."; return; }
+    if (convidado === compart.email) { erroForm.textContent = "Esse é o seu e-mail. Escolha outra pessoa."; return; }
+    if (!dados.contatos.includes(convidado)) dados.contatos.push(convidado);
+  }
 
   const campos = { texto, hora, tipo, cor };
   campos.notaHtml = limparHtml(fNotaTarefa.innerHTML);
   if (cat === "recorrente") Object.assign(campos, { inicio, fim, repete });
-  else campos.categoria = cat;
+  else { campos.categoria = cat; campos.convidado = convidado; }
 
   const novaData = document.getElementById("fData").value || editandoChave;
 
@@ -1062,10 +1222,11 @@ function salvarTarefa() {
     // Nova, ou mudou entre recorrente e não recorrente: sai de um lugar e entra no outro
     const t = editando ? { ...editando, ...campos } : { id: novoId(), ...campos, feita: false };
     if (editando) removerTarefa(editando, editandoChave);
-    if (cat === "recorrente") { delete t.categoria; delete t.feita; t.feitas ??= {}; dados.recorrentes.push(t); }
+    if (cat === "recorrente") { delete t.categoria; delete t.feita; delete t.convidado; t.feitas ??= {}; dados.recorrentes.push(t); }
     else { delete t.inicio; delete t.fim; delete t.repete; delete t.feitas; diaDe(novaData).tarefas.push(t); }
     final = t;
   }
+  if (!final.convidado) delete final.convidado; // sem convidado: igual a antes
   concluirEdicao(final, cat === "recorrente" ? chaveData(dataAtual) : novaData);
 }
 const diaDe = chave => (dados.dias[chave] ??= { tarefas: [], anotacoes: [] });
@@ -1717,7 +1878,8 @@ async function iniciar() {
   const url = m => `https://www.gstatic.com/firebasejs/${VERSAO}/firebase-${m}.js`;
   const { initializeApp } = await import(url("app"));
   const { getAuth, GoogleAuthProvider, signInWithPopup, signInWithRedirect, signOut, onAuthStateChanged } = await import(url("auth"));
-  const { initializeFirestore, persistentLocalCache, collection, doc, getDocs, getDoc, setDoc, onSnapshot } = await import(url("firestore"));
+  const { initializeFirestore, persistentLocalCache, collection, doc, getDocs, getDoc, setDoc, onSnapshot,
+    query, where, deleteDoc, updateDoc, FieldPath } = await import(url("firestore"));
 
   const app = initializeApp(FIREBASE_CONFIG);
   const auth = getAuth(app);
@@ -1763,7 +1925,7 @@ async function iniciar() {
   const diaLimpo = d => { const { tarefas, anotacoes } = window.migrarDia({ tarefas: d.tarefas || [], anotacoes: d.anotacoes || [], notas: d.notas || "" }); return { tarefas, anotacoes }; };
   const diaVazio = d => !d.tarefas.length && !d.anotacoes.length;
   // Listas guardadas em meta/{nome}: a Lista sem data e as tarefas recorrentes
-  const METAS = ["lista", "recorrentes"];
+  const METAS = ["lista", "recorrentes", "contatos"];
   const trocar = (nome, itens) => dados[nome].splice(0, dados[nome].length, ...itens); // mantém o mesmo array
   function redesenhar() {
     if (popup.open || popupItem.open || popupExec.open || popupLista.open) return; // não mexe na tela com um pop-up aberto
@@ -1774,6 +1936,7 @@ async function iniciar() {
   onAuthStateChanged(auth, async u => {
     pararDeOuvir.forEach(parar => parar());
     pararDeOuvir = []; enviados = {}; usuario = u; semAcesso = false;
+    Object.assign(compart, { email: u?.email?.toLowerCase() || "", ativo: false, recebidas: [], donas: {} });
     if (!u) { status("Entrar", "Entrar com Google para salvar na nuvem e sincronizar entre aparelhos"); return; }
 
     status("Sincronizando…");
@@ -1824,7 +1987,47 @@ async function iniciar() {
       salvar(); redesenhar();
     }, e => console.error(e)));
     mostrarConectado();
+    iniciarCompartilhadas(u);
   });
+
+  // ----- Reuniões compartilhadas (coleção reunioes/{id}, ver "Reuniões compartilhadas" no outro script) -----
+  // Se as regras novas do Firestore ainda não foram publicadas, só esta parte fica desligada; o resto funciona.
+  async function iniciarCompartilhadas(u) {
+    const col = collection(db, "reunioes"), email = compart.email;
+    const minhas = query(col, where("dono", "==", email)), paraMim = query(col, where("convidado", "==", email));
+    let snap;
+    try { snap = await getDocs(minhas); }
+    catch (e) { console.warn("Reuniões compartilhadas desligadas (regras do Firestore ainda sem a parte de reuniões?)", e); return; }
+    if (usuario !== u) return;
+    // As que já estão na nuvem: se a reunião sumiu daqui (foi apagada), o próximo envio apaga lá também
+    snap.forEach(d => { enviados["reu:" + d.id] = "?"; compart.donas[d.id] = window.respostaDe(d.data()); });
+    compart.ativo = true;
+    window.nuvemAgendar();
+    pararDeOuvir.push(onSnapshot(minhas, s => {
+      compart.donas = {};
+      s.forEach(d => compart.donas[d.id] = window.respostaDe(d.data()));
+      redesenhar();
+    }, e => console.error(e)));
+    let primeira = true;
+    pararDeOuvir.push(onSnapshot(paraMim, s => {
+      const antes = new Set(compart.recebidas.map(r => r.id));
+      compart.recebidas = s.docs.map(d => ({ ...d.data(), id: d.id }));
+      let novoContato = false;
+      for (const r of compart.recebidas) {
+        if (r.dono && !dados.contatos.includes(r.dono)) { dados.contatos.push(r.dono); novoContato = true; }
+        // Aviso no computador/celular quando chega um convite novo
+        if (!primeira && !antes.has(r.id) && window.respostaDe(r) === "pendente" && "Notification" in window && Notification.permission === "granted")
+          new Notification("👥 Convite de reunião", { body: `${r.donoNome || r.dono}: ${r.texto} (${r.data.split("-").reverse().join("/")} ${r.hora || ""})`, tag: "convite-" + r.id });
+      }
+      primeira = false;
+      if (novoContato) salvar();
+      redesenhar();
+    }, e => console.error(e)));
+  }
+  window.nuvemResponder = (r, resposta) => updateDoc(doc(db, "reunioes", r.id), new FieldPath("respostas", compart.email), resposta)
+    .catch(e => { console.error(e); status("Erro ao responder", e.code || "", "alerta"); });
+  window.nuvemMarcarFeita = (r, feita) => updateDoc(doc(db, "reunioes", r.id), new FieldPath("feitas", compart.email), feita)
+    .catch(e => console.error(e));
 
   // ----- Envio (espera 0,7s sem mudanças para não enviar a cada letra) -----
   window.nuvemAgendar = () => {
@@ -1841,6 +2044,25 @@ async function iniciar() {
       if (enviados[id] === json || (enviados[id] === undefined && diaVazio(limpo))) continue;
       enviados[id] = json;
       envios.push(setDoc(doc(db, ...base, "dias", chave), limpo));
+    }
+    // Reuniões minhas com convidado: cópia em reunioes/{id}. Erro aqui não desliga o resto da nuvem.
+    if (compart.ativo) {
+      const vivas = new Set();
+      for (const [chave, d] of Object.entries(dados.dias)) for (const t of d.tarefas || []) {
+        if (!t.convidado || t.categoria !== "reuniao") continue;
+        vivas.add(t.id);
+        const campos = { dono: compart.email, donoNome: usuario.displayName || "", convidado: t.convidado, data: chave,
+          texto: t.texto, hora: t.hora || "", tipo: t.tipo || "fixa", cor: t.cor || "", notaHtml: t.notaHtml || "" };
+        const json = JSON.stringify(campos), id = "reu:" + t.id;
+        if (enviados[id] === json) continue;
+        enviados[id] = json;
+        // merge: não apaga as respostas e o "feito" que o convidado gravou
+        setDoc(doc(db, "reunioes", t.id), campos, { merge: true }).catch(e => { console.error(e); delete enviados[id]; });
+      }
+      for (const id of Object.keys(enviados)) if (id.startsWith("reu:") && !vivas.has(id.slice(4))) {
+        delete enviados[id]; // apagada aqui, ou o convidado foi tirado: some para o convidado também
+        deleteDoc(doc(db, "reunioes", id.slice(4))).catch(e => console.error(e));
+      }
     }
     for (const nome of METAS) {
       const json = JSON.stringify(dados[nome]);
