@@ -331,17 +331,20 @@
     .chip.extra, .chip.nota { display: none; }
   }
 
-  /* ===== Tela média: Tarefas/Anotações (abas) | Calendário ===== */
+  /* ===== Tela média: Tarefas/Calendário (abas) | Anotação ===== */
   @media (min-width: 1000px) {
     main {
       display: grid; gap: 0 16px; align-items: start;
-      grid-template-columns: 1fr 1fr; grid-template-areas: "abas ." "esq cal";
+      grid-template-columns: 1fr 1fr; grid-template-areas: "abas ." "esq not";
     }
     .abas { grid-area: abas; }
-    #tarefas, #anotacoes { grid-area: esq; }
-    #calendario { grid-area: cal; display: block; border-radius: 10px; }
-    .abas button[data-aba="calendario"] { display: none; }
-    #calendario { display: flex; flex-direction: column; }
+    #tarefas, #calendario { grid-area: esq; }
+    #calendario.ativo { display: flex; flex-direction: column; }
+    #anotacoes { grid-area: not; display: flex; flex-direction: column; border-radius: 10px; }
+    .abas button[data-aba="anotacoes"] { display: none; }
+    /* vindo do celular com a aba Anotação aberta: mostra Tarefas à esquerda */
+    main:has(#anotacoes.ativo) #tarefas { display: block; }
+    .abas:has(button[data-aba="anotacoes"].ativa) button[data-aba="tarefas"] { background: var(--paper); color: var(--ink); font-weight: 600; }
     .cal .cel { min-height: 0; }
   }
   /* ===== Tela grande (4K): Tarefas | Anotações | Calendário, um terço cada ===== */
@@ -349,9 +352,9 @@
     html { font-size: 18px; }
     .abas { display: none; }
     main { grid-template-columns: repeat(3, 1fr); grid-template-areas: "tar not cal"; padding-top: 16px; }
-    #tarefas { grid-area: tar; } #anotacoes { grid-area: not; }
+    #tarefas { grid-area: tar; } #anotacoes { grid-area: not; } #calendario { grid-area: cal; }
     .painel, .painel.ativo { display: block; border-radius: 10px; }
-    #anotacoes { display: flex; flex-direction: column; }
+    #anotacoes, #calendario { display: flex; flex-direction: column; }
     .cal .cel { min-height: 0; }
   }
   /* 4K sem ampliação do Windows (100%): letras maiores */
@@ -1023,7 +1026,7 @@ function notaAtual() {
 
 function abrirNota(n, chave) {
   notaAberta = idNota(n, chave);
-  if (window.innerWidth < 2300) mostrarAba("anotacoes"); // no 4K o painel já está sempre visível
+  if (window.innerWidth < 1000) mostrarAba("anotacoes"); // na tela média e no 4K o painel já está sempre visível
   desenhar();
 }
 function desenharNota() {
@@ -1364,7 +1367,7 @@ function desenharCalendario() {
 
     cel.onclick = () => {
       irPara(data);
-      if (window.innerWidth < 1000) mostrarAba("tarefas"); // no celular, volta para as tarefas
+      if (window.innerWidth < 2300) mostrarAba("tarefas"); // no celular e na tela média, volta para as tarefas
     };
     cal.append(cel);
   }
@@ -1437,7 +1440,7 @@ document.addEventListener("keydown", e => {
   if (e.altKey && e.key === "ArrowRight") mudarDia(1);
 });
 
-// Abas: no celular são três; na tela média, Tarefas e Anotação alternam ao lado do calendário
+// Abas: no celular são três; na tela média, Tarefas e Calendário alternam ao lado da Anotação
 function mostrarAba(nome) {
   document.querySelectorAll(".abas button").forEach(x => x.classList.toggle("ativa", x.dataset.aba === nome));
   document.querySelectorAll(".painel").forEach(p => p.classList.toggle("ativo", p.id === nome));
