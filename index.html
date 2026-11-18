@@ -500,10 +500,12 @@
   </form>
 </dialog>
 
-<!-- Pop-up ao marcar uma tarefa como feita: início e fim (opcional) -->
+<!-- Pop-up ao marcar uma tarefa como feita: data, início e fim (opcional) -->
 <dialog id="popupExec">
   <h3>Tarefa concluída ✔</h3>
   <p id="execTexto" style="margin:-8px 0 14px;color:var(--muted)"></p>
+  <label for="execData">Data em que foi feita</label>
+  <input type="date" id="execData" style="margin-bottom:8px">
   <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
     <div><label for="execIni">Início</label><input type="time" id="execIni"></div>
     <div><label for="execFim">Fim</label><input type="time" id="execFim"></div>
@@ -929,11 +931,16 @@ function linhaTarefa(t, chave, ehAtrasada = false) {
   texto.textContent = (ICONE_CATEGORIA[t.categoria] ? ICONE_CATEGORIA[t.categoria] + " " : "") + t.texto;
   if (t.cor) texto.style.background = t.cor;
   const ex = execucaoDe(t, chave);
-  if (t.feita && ex) { // início e fim da execução, discreto antes da descrição
-    const sp = document.createElement("span");
-    sp.className = "exec"; sp.title = "Início e fim da execução";
-    sp.textContent = `${ex.ini || ""}–${ex.fim || ""}`;
-    texto.prepend(sp);
+  if (t.feita && ex) { // data (se foi outro dia), início e fim da execução, discreto antes da descrição
+    const partes = [];
+    if (ex.data && ex.data !== chave) partes.push("feita " + dataCurta(ex.data).slice(0, 5));
+    if (ex.ini || ex.fim) partes.push(`${ex.ini || ""}–${ex.fim || ""}`);
+    if (partes.length) {
+      const sp = document.createElement("span");
+      sp.className = "exec"; sp.title = "Quando a tarefa foi feita";
+      sp.textContent = partes.join(" ");
+      texto.prepend(sp);
+    }
   }
   const etiqueta = etiquetaReuniao(t);
   if (etiqueta) texto.append(etiqueta);
@@ -966,7 +973,8 @@ function linhaTarefa(t, chave, ehAtrasada = false) {
 }
 
 // ================= Início e fim da execução (perguntado ao marcar o check; opcional) =================
-// Tarefa: exec = { ini, fim }. Recorrente: execs = { "2026-10-30": { ini, fim } }, um por dia.
+// Tarefa: exec = { ini, fim, data }. Recorrente: execs = { "2026-10-30": { ini, fim, data } }, um por dia.
+// data = dia em que foi feita de verdade (pode ser diferente do dia da tarefa, ex.: atrasada feita ontem).
 const execucaoDe = (t, chave) => t.rec ? t.rec.execs?.[chave] : t.exec;
 function guardarExecucao(t, chave, ex) {
   if (t.rec) { t.rec.execs ??= {}; if (ex) t.rec.execs[chave] = ex; else delete t.rec.execs[chave]; }
@@ -977,6 +985,9 @@ let execPendente = null;
 function perguntarExecucao(t, chave) {
   execPendente = { t, chave };
   document.getElementById("execTexto").textContent = t.texto;
+  const hoje = chaveData(new Date());
+  const cData = document.getElementById("execData");
+  cData.value = hoje; cData.max = hoje; // já vem com a data de hoje; não aceita data futura
   document.getElementById("execIni").value = "";
   document.getElementById("execFim").value = "";
   popupExec.showModal();
@@ -984,7 +995,12 @@ function perguntarExecucao(t, chave) {
 document.getElementById("execPular").onclick = () => popupExec.close();
 document.getElementById("execSalvar").onclick = () => {
   const ini = document.getElementById("execIni").value, fim = document.getElementById("execFim").value;
-  if (ini || fim) { guardarExecucao(execPendente.t, execPendente.chave, { ini, fim }); salvar(); desenhar(); }
+  let data = document.getElementById("execData").value || chaveData(new Date());
+  if (data > chaveData(new Date())) data = chaveData(new Date());
+  const ex = { data };
+  if (ini) ex.ini = ini;
+  if (fim) ex.fim = fim;
+  guardarExecucao(execPendente.t, execPendente.chave, ex); salvar(); desenhar();
   popupExec.close();
 };
 document.querySelectorAll("#popupExec input").forEach(c => c.onkeydown = e => {
